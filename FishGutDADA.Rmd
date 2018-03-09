@@ -1,0 +1,286 @@
+---
+title: "FishGutDADA"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r files_and_directories}
+# Directories
+data.dir = "/sharedspace/fish_guts"
+out.dir = file.path("/sharedspace/fish_guts/") 
+map.path = file.path("/sharedspace/fish_guts/mapping_files")
+
+# make directory for output
+dir.create(out.dir, recursive = TRUE)
+
+# Files
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane1.txt")
+
+# Set variables for bash
+Sys.setenv(MAP_FILE = map.file)
+Sys.setenv(OUT_DIR = out.dir)
+Sys.setenv(DATA_DIR = data.dir)
+```
+
+```{bash}
+cd $DATA_DIR/raw_data
+md5sum -c fishgut_rawdata_md5sum.txt
+```
+
+```{r load_map}
+library(readr)
+meta.df = read_tsv(map.file)
+head(meta.df)
+```
+
+```{bash, validate mapping file}
+#Be sure correct mapping file is being validated, there are 3 total mapping files. lane 1, 2, 3.
+validate_mapping_file.py -m $MAP_FILE -o $OUT_DIR/validate_mapfile
+```
+
+```{r, set map file to lane 1 map}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane1.txt")
+Sys.setenv(MAP_FILE = map.file)
+```
+
+```{bash, combine all R2 and R3 files for pool 1}
+zcat $DATA_DIR/raw_data/4_reads/pool_1/*R2*.fastq.gz | \
+  sed 's/2:N:0:/1:N:0:/g' | \
+  gzip -c > $OUT_DIR/raw_data/R2_combined.fastq.gz
+
+cat $DATA_DIR/raw_data/4_reads/pool_1/*R3*.fastq.gz > $OUT_DIR/raw_data/R3_combined.fastq.gz
+
+extract_barcodes.py -f $DATA_DIR/raw_data/R2_combined.fastq.gz -r $DATA_DIR/raw_data/R3_combined.fastq.gz -c barcode_paired_end --bc1_len 8 --bc2_len 8 -o $OUT_DIR/barcodes/pool1 -m $MAP_FILE 
+```
+
+```{r, set map file to lane 2 map}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane2.txt")
+Sys.setenv(MAP_FILE = map.file)
+```
+
+```{bash, combine all R2 and R3 files for pool 2}
+zcat $DATA_DIR/raw_data/4_reads/pool_2/*R2*.fastq.gz | \
+  sed 's/2:N:0:/1:N:0:/g' | \
+  gzip -c > $OUT_DIR/raw_data/R2_combined.fastq.gz
+
+cat $DATA_DIR/raw_data/4_reads/pool_2/*R3*.fastq.gz > $OUT_DIR/raw_data/R3_combined.fastq.gz
+
+extract_barcodes.py -f $DATA_DIR/raw_data/R2_combined.fastq.gz -r $DATA_DIR/raw_data/R3_combined.fastq.gz -c barcode_paired_end --bc1_len 8 --bc2_len 8 -o $OUT_DIR/barcodes/pool2 -m $MAP_FILE 
+```
+
+```{r, set map file to lane 3 map}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane3.txt")
+Sys.setenv(MAP_FILE = map.file)
+```
+
+```{bash, combine all R2 and R3 files for pool 3}
+zcat $DATA_DIR/raw_data/4_reads/pool_3/*R2*.fastq.gz | \
+  sed 's/2:N:0:/1:N:0:/g' | \
+  gzip -c > $OUT_DIR/raw_data/R2_combined.fastq.gz
+
+cat $DATA_DIR/raw_data/4_reads/pool_3/*R3*.fastq.gz > $OUT_DIR/raw_data/R3_combined.fastq.gz
+
+extract_barcodes.py -f $DATA_DIR/raw_data/R2_combined.fastq.gz -r $DATA_DIR/raw_data/R3_combined.fastq.gz -c barcode_paired_end --bc1_len 8 --bc2_len 8 -o $OUT_DIR/barcodes/pool3 -m $MAP_FILE 
+```
+
+```{bash, combine R1 and R4 files for pools 1, 2, and 3}
+cat $DATA_DIR/raw_data/4_reads/pool_1/*R1*.fastq.gz > $OUT_DIR/raw_data/R1_combinedpool1.fastq.gz
+cat $DATA_DIR/raw_data/4_reads/pool_1/*R4*.fastq.gz > $OUT_DIR/raw_data/R4_combinedpool1.fastq.gz
+
+cat $DATA_DIR/raw_data/4_reads/pool_2/*R1*.fastq.gz > $OUT_DIR/raw_data/R1_combinedpool2.fastq.gz
+cat $DATA_DIR/raw_data/4_reads/pool_2/*R4*.fastq.gz > $OUT_DIR/raw_data/R4_combinedpool2.fastq.gz
+
+cat $DATA_DIR/raw_data/4_reads/pool_3/*R1*.fastq.gz > $OUT_DIR/raw_data/R1_combinedpool3.fastq.gz
+cat $DATA_DIR/raw_data/4_reads/pool_3/*R4*.fastq.gz > $OUT_DIR/raw_data/R4_combinedpool3.fastq.gz
+```
+
+```{r, set map file to lane 1 map}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane1.txt")
+Sys.setenv(MAP_FILE = map.file)
+```
+
+```{bash, pool 1 demultiplex}
+split_libraries_fastq.py \
+    --sequence_read_fps $DATA_DIR/raw_data/R1_combinedpool1.fastq.gz \
+    --barcode_read_fps $DATA_DIR/barcodes/pool1/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool1/R1 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+
+split_libraries_fastq.py \
+    --sequence_read_fps $DATA_DIR/raw_data/R4_combinedpool1.fastq.gz \
+    --barcode_read_fps $DATA_DIR/barcodes/pool1/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool1/R4 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+```
+
+```{r}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane2.txt")
+Sys.setenv(MAP_FILE = map.file)    
+```
+
+```{bash}
+split_libraries_fastq.py \
+    --sequence_read_fps $DATA_DIR/raw_data/R1_combinedpool2.fastq.gz \
+    --barcode_read_fps $DATA_DIR/barcodes/pool2/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool2/R1 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+
+split_libraries_fastq.py \
+    --sequence_read_fps $DATA_DIR/raw_data/R4_combinedpool2.fastq.gz \
+    --barcode_read_fps $DATA_DIR/barcodes/pool2/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool2/R4 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+```
+
+```{r}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane3.txt")
+Sys.setenv(MAP_FILE = map.file)
+```
+
+```{bash}
+split_libraries_fastq.py \
+    --sequence_read_fps $DATA_DIR/raw_data/R1_combinedpool3.fastq.gz \
+    --barcode_read_fps $DATA_DIR/barcodes/pool3/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool3/R1 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+
+split_libraries_fastq.py \
+    --sequence_read_fps $DATA_DIR/raw_data/R4_combinedpool3.fastq.gz \
+    --barcode_read_fps $DATA_DIR/barcodes/pool3/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool3/R4 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+```
+
+```{bash}
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $DATA_DIR/split/pool1/R1/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool1F
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $DATA_DIR/split/pool1/R4/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool1R
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $DATA_DIR/split/pool2/R1/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool2F
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $DATA_DIR/split/pool2/R4/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool2R
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $DATA_DIR/split/pool3/R1/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool3F
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $DATA_DIR/split/pool3/R4/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool3R
+```
+
+````{bash}
+head -n 10 $DATA_DIR/split/pool3/R1/seqs.fastq
+```
+
+```{bash}
+mkdir $OUT_DIR/DADA2
+mkdir $OUT_DIR/DADA2/Forward
+mkdir $OUT_DIR/DADA2/Reverse
+
+cp -R $OUT_DIR/sample_files/pool1F/* $OUT_DIR/DADA2/Forward
+cp -R $OUT_DIR/sample_files/pool2F/* $OUT_DIR/DADA2/Forward
+cp -R $OUT_DIR/sample_files/pool3F/* $OUT_DIR/DADA2/Forward
+
+cp -R $OUT_DIR/sample_files/pool1R/* $OUT_DIR/DADA2/Reverse
+cp -R $OUT_DIR/sample_files/pool2R/* $OUT_DIR/DADA2/Reverse
+cp -R $OUT_DIR/sample_files/pool3R/* $OUT_DIR/DADA2/Reverse
+```
+
+```{bash}
+cp -R $OUT_DIR/sample_files/pool2R/* $OUT_DIR/DADA2/Reverse
+cp -R $OUT_DIR/sample_files/pool3R/* $OUT_DIR/DADA2/Reverse
+```
+
+```{bash}
+#tar -zcvf pool1Farchive.tar.gz $OUT_DIR/sample_files/pool1F/
+```
+
+```{bash}
+mkdir $OUT_DIR/DADA2/filteredF
+mkdir $OUT_DIR/DADA2/filteredR
+```
+
+```{r}
+# File parsing
+pathF = "/sharedspace/fish_guts/DADA2/Forward"
+pathR = "/sharedspace/fish_guts/DADA2/Reverse"
+
+filtpathF = "/sharedspace/fish_guts/DADA2/filteredF" 
+filtpathR = "/sharedspace/fish_guts/DADA2/filteredR" 
+
+fastqFs <- sort(list.files(pathF, pattern="fastq", full.names = TRUE))
+fastqRs <- sort(list.files(pathR, pattern="fastq", full.names = TRUE))
+
+if(length(fastqFs) != length(fastqRs)) stop("Forward and reverse files do not match.")
+```
+
+```{r}
+library(dada2)
+plotQualityProfile(pathF[1])
+```
+
+```{r}
+plotQualityProfile(pathR[1:2])
+```
+
+```{r}
+# Filtering: THESE PARAMETERS ARENT OPTIMAL FOR ALL DATASETS
+out = filterAndTrim(pathF, filtpathF, pathR, filtpathR, maxEE=c(20,20), truncQ=30, maxN=20, rm.phix=TRUE, compress=TRUE, verbose=TRUE)
+```
+
+```{bash}
+head -n 10 $DATA_DIR/DADA2/Reverse/0dpS.1Fm-a.fastq
+```
+
+
+
+
