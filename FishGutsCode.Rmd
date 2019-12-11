@@ -1,0 +1,544 @@
+---
+title: "FishGutDADAv2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r files_and_directories}
+# Directories
+data.dir = file.path("/data/fishguts_rawdata")
+out.dir = file.path("/sharedspace/fish_guts") 
+map.path = file.path("/sharedspace/fish_guts/mapping_files")
+header_fixed.dir = file.path(out.dir, "header_fixed")
+trimmed.dir=file.path("/sharedspace/fish_guts/TrimmedFASTQs")
+
+# make directory for output
+dir.create(out.dir, recursive = TRUE)
+dir.create(header_fixed.dir, recursive = TRUE)
+
+
+# Files
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane1.txt")
+
+# Set variables for bash
+Sys.setenv(MAP_FILE = map.file)
+Sys.setenv(OUT_DIR = out.dir)
+Sys.setenv(DATA_DIR = data.dir)
+Sys.setenv(HEADER_FIXED_DIR = header_fixed.dir)
+Sys.setenv(TRIMMED_DIR = trimmed.dir)
+```
+
+```{bash}
+cd $DATA_DIR/raw_data
+md5sum -c fishgut_rawdata_md5sum.txt
+```
+
+```{bash}
+cd /sharedspace/fish_guts/DemultiplexedFiles
+md5sum * > checklist.txt
+```
+
+
+```{r load_map}
+library(readr)
+meta.df = read_tsv(map.file)
+head(meta.df)
+```
+
+```{bash, validate mapping file}
+#Be sure correct mapping file is being validated, there are 3 total mapping files. lane 1, 2, 3.
+validate_mapping_file.py -m $MAP_FILE -o $OUT_DIR/validate_mapfile
+```
+
+```{r, set map file to lane 1 map}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane1.txt")
+Sys.setenv(MAP_FILE = map.file)
+```
+
+```{bash, combine all R2 and R3 files for pool 1 ran for 150 min}
+zcat $DATA_DIR/4_reads/pool_1/*R2*.fastq.gz | \
+  sed 's/2:N:0:/1:N:0:/g' | \
+  gzip -c > $OUT_DIR/raw_data/R2_combined.fastq.gz
+
+cat $DATA_DIR/4_reads/pool_1/*R3*.fastq.gz > $OUT_DIR/raw_data/R3_combined.fastq.gz
+
+extract_barcodes.py -f $OUT_DIR/raw_data/R2_combined.fastq.gz -r $OUT_DIR/raw_data/R3_combined.fastq.gz -c barcode_paired_end --bc1_len 8 --bc2_len 8 -o $OUT_DIR/barcodes/pool1 -m $MAP_FILE 
+```
+
+```{r, set map file to lane 2 map}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane2.txt")
+Sys.setenv(MAP_FILE = map.file)
+```
+
+```{bash, combine all R2 and R3 files for pool 2}
+zcat $DATA_DIR/4_reads/pool_2/*R2*.fastq.gz | \
+  sed 's/2:N:0:/1:N:0:/g' | \
+  gzip -c > $OUT_DIR/raw_data/R2_combined.fastq.gz
+
+cat $DATA_DIR/4_reads/pool_2/*R3*.fastq.gz > $OUT_DIR/raw_data/R3_combined.fastq.gz
+
+extract_barcodes.py -f $OUT_DIR/raw_data/R2_combined.fastq.gz -r $OUT_DIR/raw_data/R3_combined.fastq.gz -c barcode_paired_end --bc1_len 8 --bc2_len 8 -o $OUT_DIR/barcodes/pool2 -m $MAP_FILE 
+```
+
+```{r, set map file to lane 3 map}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane3.txt")
+Sys.setenv(MAP_FILE = map.file)
+```
+
+```{bash, combine all R2 and R3 files for pool 3}
+zcat $DATA_DIR/4_reads/pool_3/*R2*.fastq.gz | \
+  sed 's/2:N:0:/1:N:0:/g' | \
+  gzip -c > $OUT_DIR/raw_data/R2_combined.fastq.gz
+
+cat $DATA_DIR/4_reads/pool_3/*R3*.fastq.gz > $OUT_DIR/raw_data/R3_combined.fastq.gz
+
+extract_barcodes.py -f $OUT_DIR/raw_data/R2_combined.fastq.gz -r $OUT_DIR/raw_data/R3_combined.fastq.gz -c barcode_paired_end --bc1_len 8 --bc2_len 8 -o $OUT_DIR/barcodes/pool3 -m $MAP_FILE 
+```
+
+```{bash, combine R1 and R4 files for pools 1, 2, and 3}
+cat $DATA_DIR/4_reads/pool_1/*R1*.fastq.gz >$OUT_DIR/raw_data/R1_combinedpool1.fastq.gz
+cat $DATA_DIR/4_reads/pool_1/*R4*.fastq.gz >$OUT_DIR/raw_data/R4_combinedpool1.fastq.gz
+
+cat $DATA_DIR/4_reads/pool_2/*R1*.fastq.gz >$OUT_DIR/raw_data/R1_combinedpool2.fastq.gz
+cat $DATA_DIR/4_reads/pool_2/*R4*.fastq.gz >$OUT_DIR/raw_data/R4_combinedpool2.fastq.gz
+
+cat $DATA_DIR/4_reads/pool_3/*R1*.fastq.gz >$OUT_DIR/raw_data/R1_combinedpool3.fastq.gz
+cat $DATA_DIR/4_reads/pool_3/*R4*.fastq.gz >$OUT_DIR/raw_data/R4_combinedpool3.fastq.gz
+```
+
+```{bash, remove adapters on pool1}
+#Need to install cutadapt
+
+cutadapt --match-read-wildcards -g XGTG -g XAGTG -g XTCGTG -g XCACGTG -g XACAAGTG -g XTGCAAGTG -o $TRIMMED_DIR/cleaned.R1.pool1.fq.gz $OUT_DIR/raw_data/R1_combinedpool1.fastq.gz
+
+cutadapt --match-read-wildcards -g XGGAC -g XAGGAC -g XTAGGAC -g XCCCGGAC -g XATTTGGAC -g XGCACAGGAC -o $TRIMMED_DIR/cleaned.R4.pool1.fq.gz $OUT_DIR/raw_data/R4_combinedpool1.fastq.gz
+```
+
+```{bash, remove adapters on pool2}
+cutadapt --match-read-wildcards -g XGTG -g XAGTG -g XTCGTG -g XCACGTG -g XACAAGTG -g XTGCAAGTG -o $TRIMMED_DIR/cleaned.R1.pool2.fq.gz $OUT_DIR/raw_data/R1_combinedpool2.fastq.gz
+
+cutadapt --match-read-wildcards -g XGGAC -g XAGGAC -g XTAGGAC -g XCCCGGAC -g XATTTGGAC -g XGCACAGGAC -o $TRIMMED_DIR/cleaned.R4.pool2.fq.gz $OUT_DIR/raw_data/R4_combinedpool2.fastq.gz
+```
+
+
+```{bash, remove adapters on pool3}
+cutadapt --match-read-wildcards -g XGTG -g XAGTG -g XTCGTG -g XCACGTG -g XACAAGTG -g XTGCAAGTG -o $TRIMMED_DIR/cleaned.R1.pool3.fq.gz $OUT_DIR/raw_data/R1_combinedpool3.fastq.gz
+
+cutadapt --match-read-wildcards -g XGGAC -g XAGGAC -g XTAGGAC -g XCCCGGAC -g XATTTGGAC -g XGCACAGGAC -o $TRIMMED_DIR/cleaned.R4.pool3.fq.gz $OUT_DIR/raw_data/R4_combinedpool3.fastq.gz
+```
+
+```{r, set map file to lane 1 map}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane1.txt")
+Sys.setenv(MAP_FILE = map.file)
+```
+
+```{bash, pool 1 demultiplex}
+split_libraries_fastq.py \
+    --sequence_read_fps $TRIMMED_DIR/cleaned.R1.pool1.fq.gz \
+    --barcode_read_fps $OUT_DIR/barcodes/pool1/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool1/R1 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+
+split_libraries_fastq.py \
+    --sequence_read_fps $TRIMMED_DIR/cleaned.R4.pool1.fq.gz \
+    --barcode_read_fps $OUT_DIR/barcodes/pool1/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool1/R4 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+```
+
+```{r}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane2.txt")
+Sys.setenv(MAP_FILE = map.file)    
+```
+
+```{bash}
+split_libraries_fastq.py \
+    --sequence_read_fps $TRIMMED_DIR/cleaned.R1.pool2.fq.gz \
+    --barcode_read_fps $OUT_DIR/barcodes/pool2/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool2/R1 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+
+split_libraries_fastq.py \
+    --sequence_read_fps $TRIMMED_DIR/cleaned.R4.pool2.fq.gz \
+    --barcode_read_fps $OUT_DIR/barcodes/pool2/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool2/R4 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+```
+
+```{r}
+map.file = file.path(map.path,"2015-02-10_AdultStarvation_Map_lane3.txt")
+Sys.setenv(MAP_FILE = map.file)
+```
+
+```{bash}
+split_libraries_fastq.py \
+    --sequence_read_fps $TRIMMED_DIR/cleaned.R1.pool3.fq.gz \
+    --barcode_read_fps $OUT_DIR/barcodes/pool3/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool3/R1 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+
+split_libraries_fastq.py \
+    --sequence_read_fps $TRIMMED_DIR/cleaned.R4.pool3.fq.gz \
+    --barcode_read_fps $OUT_DIR/barcodes/pool3/barcodes.fastq \
+    --output_dir $OUT_DIR/split/pool3/R4 \
+    --mapping_fps $MAP_FILE \
+    --max_bad_run_length 999 \
+    --phred_quality_threshold 0 \
+    --sequence_max_n 999 \
+    --min_per_read_length_fraction 0.0001 \
+    --store_demultiplexed_fastq \
+    --barcode_type 16
+```
+
+```{bash}
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $OUT_DIR/split/pool1/R1/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool1F
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $OUT_DIR/split/pool1/R4/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool1R
+
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $OUT_DIR/split/pool2/R1/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool2F
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $OUT_DIR/split/pool2/R4/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool2R
+
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $OUT_DIR/split/pool3/R1/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool3F
+split_sequence_file_on_sample_ids.py \
+  --input_seqs_fp $OUT_DIR/split/pool3/R4/seqs.fastq \
+  --file_type fastq \
+  --output_dir $OUT_DIR/sample_files/pool3R
+```
+
+```{bash, make directories to combine all files}
+mkdir $OUT_DIR/DADA2
+mkdir $OUT_DIR/DADA2/Forward
+mkdir $OUT_DIR/DADA2/Reverse
+
+cp -R $OUT_DIR/sample_files/pool1F/* $OUT_DIR/DADA2/Forward
+cp -R $OUT_DIR/sample_files/pool2F/* $OUT_DIR/DADA2/Forward
+cp -R $OUT_DIR/sample_files/pool3F/* $OUT_DIR/DADA2/Forward
+
+cp -R $OUT_DIR/sample_files/pool1R/* $OUT_DIR/DADA2/Reverse
+cp -R $OUT_DIR/sample_files/pool2R/* $OUT_DIR/DADA2/Reverse
+cp -R $OUT_DIR/sample_files/pool3R/* $OUT_DIR/DADA2/Reverse
+```
+
+```{r}
+require(dada2)
+```
+
+```{bash, make directories to run dada2}
+mkdir $OUT_DIR/DADA2/filteredF
+mkdir $OUT_DIR/DADA2/filteredR
+```
+
+```{r}
+# File parsing
+pathF = "/sharedspace/fish_guts/DADA2/Forward"
+pathR = "/sharedspace/fish_guts/DADA2/Reverse"
+
+fastqFs <- sort(list.files(pathF, pattern="fastq", full.names = TRUE))
+fastqRs <- sort(list.files(pathR, pattern="fastq", full.names = TRUE))
+
+sample.namesF <- list.files(pathF, pattern="fastq", full.names = TRUE)
+sample.namesR <- list.files(pathR, pattern="fastq", full.names = TRUE)
+
+filtpathF = "/sharedspace/fish_guts/DADA2/filteredF" 
+filtpathR = "/sharedspace/fish_guts/DADA2/filteredR" 
+
+filtFs <- file.path(filtpathF, sample.namesF)
+filtRs <- file.path(filtpathR, sample.namesR)
+
+if(length(fastqFs) != length(fastqRs)) stop("Forward and reverse files do not match.")
+```
+
+```{r, check quality of forward reads}
+library(dada2)
+plotQualityProfile(pathF[1:2])
+```
+
+```{r, check quality of reverse reads}
+plotQualityProfile(pathR[1:2])
+```
+
+```{r}
+# Filtering: THESE PARAMETERS ARENT OPTIMAL FOR ALL DATASETS
+require(dada2)
+out = filterAndTrim(fastqFs, filtFs, fastqRs, filtRs, maxEE=c(2,2), truncQ=5, maxN=0, rm.phix=TRUE, compress=TRUE, verbose=TRUE, matchIDs = TRUE)
+
+saveRDS(out, "~/out.RDS")
+
+errF = learnErrors(filtFs, multithread = TRUE)
+errR = learnErrors(filtRs, multithread = TRUE)
+
+# Infer sequence variants
+sample.names <- sapply(strsplit(basename(filtFs), ".fastq"), `[`, 1) 
+sample.namesR <- sapply(strsplit(basename(filtRs), ".fastq"), `[`, 1) 
+if(!identical(sample.names, sample.namesR)) stop("Forward and reverse files do not match.")
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+mergers <- vector("list", length(sample.namesF))
+names(mergers) <- sample.namesR
+
+for(sam in sample.names) {
+  cat("Processing:", sam, "\n")
+    derepF <- derepFastq(filtFs[[sam]])
+    ddF <- dada(derepF, err=errF, multithread=TRUE)
+    derepR <- derepFastq(filtRs[[sam]])
+    ddR <- dada(derepR, err=errR, multithread=TRUE)
+    merger <- mergePairs(ddF, derepF, ddR, derepR)
+    mergers[[sam]] <- merger
+}
+
+# Construct sequence table and remove chimeras
+seqtab <- makeSequenceTable(mergers)
+
+saveRDS(seqtab, "~/seqtab.RDS")
+seqtab=readRDS("~/seqtab.RDS")
+table(nchar(getSequences(seqtab)))
+
+seqtab2 <- seqtab[,nchar(colnames(seqtab)) %in% seq(282,288)]
+rm(seqtab)
+```
+
+```{r}
+# Remove chimeras
+seqtab.nochim <- removeBimeraDenovo(seqtab2, method="consensus", multithread=TRUE)
+# Assign taxonomy
+taxa <- assignTaxonomy(seqtab.nochim, "/sharedspace/fish_guts/silva_nr_v132_train_set.fa.gz", multithread=TRUE)
+
+#species = addSpecies(taxa, "/data/references/dada/silva_species_assignment_v132.fa.gz")
+
+saveRDS(taxa, "~/taxa.RDS")
+taxa=readRDS("~/taxa.RDS")
+
+rownames(FishDF)=FishDF$Info
+
+require(phyloseq)
+ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
+               sample_data(FishDF), 
+               tax_table(taxa))
+
+saveRDS(ps, "~/ps.RDS")
+```
+
+##Completion of DADA2, now begin making phyloseq objects and remove DEVStarv experiment samples
+
+##Need to review this chunk of code
+```{r}
+fishy.ps = subset_samples(ps, sample_data(ps)$Group == "Fish")
+fishonly.f = filter_taxa(fishy.ps, function(x) mean(x) != 0, prune=TRUE)
+rm(fishy.ps)
+```
+
+```{r remove outliers from dataset}
+library(phyloseq)
+#get list of sample names with less than 2000 total reads
+Sam=as.list(sample_names(subset_samples(fishonly.f, sample_sums(fishonly.f) <=2000)))
+
+Sam
+
+fishonly.fp = subset_samples(fishonly.f, sample_names(fishonly.f) != "1S.S1a" & sample_names(fishonly.f) != "1S.S1b" & sample_names(fishonly.f) != "1S.S1c" & sample_names(fishonly.f) != "21R.F3a" & sample_names(fishonly.f) != "3R.S2c" & sample_names(fishonly.f) != "3S.F2f" & sample_names(fishonly.f) != "7R.F1d" & sample_names(fishonly.f) != "7R.F1e" & sample_names(fishonly.f) != "7R.F2c" & sample_names(fishonly.f) != "7R.S3b" & sample_names(fishonly.f) != "7R.S4e")
+
+```
+
+```{r, create merged phyloseq file}
+fishy.r = transform_sample_counts(fishonly.fp, function(x) x / sum(x) )
+rm(fishonly.fp, fishonly.f)
+
+#ordination test
+ord.test=ordinate(fishy.r, "NMDS", "bray")
+p1=plot_ordination(fishy.r, ord.test, type="samples", color="TimeFedStarved")
+print(p1)
+```
+
+```{r, use function to make matrix usable for vegan from phyloseq object}
+library(vegan)
+
+vegan_otu <- function(physeq) {
+    OTU <- otu_table(physeq)
+    if (taxa_are_rows(OTU)) {
+        OTU <- t(OTU)
+    }
+    return(as(OTU, "matrix"))
+}
+```
+
+```{r}
+##merge otu table with sample data
+fishdr=as.data.frame(cbind(sample_names(fishonly),sample_data(fishonly)$ExptlTimePoint, sample_data(fishonly)$FedStarved, sample_data(fishonly)$TimeFedStarved, sample_data(fishonly)$TankName))
+fishdr2 <- fishdr[,-1]
+fishsamplenames = as.matrix(fishdr[1])
+rownames(fishdr) <- fishsamplenames
+colnames(fishdr) = c("SampleNames", "ExptlTimePoint", "FedStarved", "TimeFedStarved", "TankName")
+
+##shows exptltimepoint is signficant for posthoc testing
+adonis(otu_table(psr.fishonly)~FedStarved*TimeFedStarved*ExptlTimePoint, permutations = 999, data=fishdr,strata = fishdr$TankName, parralell = 4)
+
+rich.fish=estimate_richness(otu_table(fishy.ps), split = TRUE, measures = c("Observed", "Shannon"))
+```
+
+```{r}
+fishdr = as.data.frame(sample_data(fishy.r))
+BetaFish=vegdist(vegan_otu(fishy.r), "bray")
+fishdr$facet=factor(fishdr$facet, levels = c("0", "1", "3", "7", "21"))
+fishdr$facet2=factor(fishdr$facet2, levels = c("Starved","Refed"))
+betadisfish=betadisper(BetaFish, group=fishdr$TimeFedStarved, type="centroid")
+newphyloPCoA=data.frame(scores(betadisfish,display="sites",choice=1:3),fishdr)
+newphyloPCoA2=newphyloPCoA
+newphyloPCoA$ExptlTimePoint=NULL
+newphyloPCoA$facet=NULL
+newphyloPCoA$facet2=NULL
+
+PCoA.plot=ggplot(data = newphyloPCoA2, aes(x = PCoA2, y = PCoA3)) + geom_point(data=newphyloPCoA, alpha=0.05) + geom_point(data = newphyloPCoA2, aes(color = FedStarved), alpha=0.7) + facet_grid(facet2~facet) + theme_bw()+stat_ellipse(data=newphyloPCoA2, aes(group=FedStarved,color=FedStarved),type = "t")+scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f"))+labs(x="PCoA 2 [12.6%]", y="PCoA 3 [10.2%]")
+
+PCoA.plot
+```
+
+```{r, alphadiversity plot, keep for pub}
+library(RColorBrewer)
+fishalpha=diversity(otu_table(fishonly.fp), index = "shannon", MARGIN = 1, base = exp(1))
+alphaplot=cbind(sample_data(fishonly.fp), fishalpha)
+
+alphaplot$ExptlTimePoint = factor(alphaplot$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+
+p=ggplot(alphaplot, aes(x=FedStarved, y=fishalpha))+geom_boxplot(aes(color=FedStarved))+facet_grid(~ExptlTimePoint)+scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f"))+theme_bw()
+p
+
+alphaplot$logV = log10(alphaplot$fishalpha)
+
+Day0fed=subset(alphaplot, alphaplot$TimeFedStarved == "0Sstarved")
+
+shapiro.test(Day0fed$logV)
+
+mean(Day0fed$logV)
+
+#normalize log transformed value to be equal at Day 0
+
+(0.7332785+0.6869831)/2
+
+x=0.7101308/0.7332785
+
+y=0.7101308/0.6869831
+
+library(dplyr)
+
+FedAlpha=filter(alphaplot, FedStarved == "fed") %>% mutate(logV, logVt=logV*x)
+StarvedAlpha = filter(alphaplot, FedStarved == "starved") %>% mutate(logV, logVt=logV*y)
+
+AlphaPlot2=full_join(FedAlpha, StarvedAlpha)
+
+p=ggplot(AlphaPlot2, aes(x=ExptlTimePoint, y=logVt)) + geom_point(aes(color=FedStarved), alpha = 0.3) + scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f")) +stat_summary(aes(y=logVt, group = FedStarved), fun.data = mean_se, geom = "errorbar", width = 0.1)+stat_summary(aes(y=logVt, group = FedStarved, color = FedStarved), fun.y = mean, geom = "line")+theme_bw()+xlab("Experimental Time Point")+ylab("Normalized log Alpha Diversity")
+
+p #anova indicates that there is a signficant difference by condition (fedStarved), time and condition x time (p = 0.026)
+
+Day0fed= AlphaPlot2 %>% filter(AlphaPlot2$TimeFedStarved == "0Sstarved") 
+
+mean(Day0fed$logVt)
+
+min(AlphaPlot2$logVt)
+
+fit=aov(logVt ~ FedStarved*ExptlTimePoint , data=AlphaPlot2)
+plot(fit)
+summary(fit)
+#anova indicates that there is a signficant difference by condition (fedStarved), time and condition x time (p = 0.026)
+TukeyHSD(fit)
+#signficant difference at 7R p=0.0091635 and 21R p=0.0056947 between fed and starved alpha diversity
+```
+
+```{r, export data for lefse, keep for pub}
+write.csv(cbind(t(seqtab.nochim), taxa), "~/LEFsE.csv", quote=FALSE)
+
+LEFsE.OTU=as.data.frame(cbind(t(otu_table(fishy.r, taxa_are_rows=FALSE)), tax_table(fishy.r)))
+
+LEFsE.OTU$X1=NULL
+LEFsE.OTU$Info=paste(LEFsE.OTU$Kingdom,LEFsE.OTU$Phylum,LEFsE.OTU$Class,LEFsE.OTU$Order,LEFsE.OTU$Family,LEFsE.OTU$Genus,sep = "|")
+LEFsE.OTU$Kingdom=NULL
+LEFsE.OTU$Phylum=NULL
+LEFsE.OTU$Class=NULL
+LEFsE.OTU$Order=NULL
+LEFsE.OTU$Family=NULL
+LEFsE.OTU$Genus = NULL
+
+fishdata3=as.data.frame(t(sample_data(fishy.r)))
+fishdata3$Info=paste(row.names(fishdata3))
+fishdata4=fishdata3[c("FedStarved","TimeFedStarved","Description"),]
+
+rm(fishdata3)
+
+LEFsE.out=merge(LEFsE.OTU, fishdata4, all=TRUE)
+
+write.csv(LEFsE.out, "~/LEFsE.csv", quote=FALSE)
+
+```
+
+```{r, test if glom is useful for LEfSe}
+genus.glom=tax_glom(fishy.r, "Genus")
+
+LEFsE.OTU2=as.data.frame(cbind(t(otu_table(genus.glom, taxa_are_rows=FALSE)), tax_table(genus.glom)))
+
+LEFsE.OTU2$X1=NULL
+LEFsE.OTU2$Info=paste(LEFsE.OTU2$Kingdom,LEFsE.OTU2$Phylum,LEFsE.OTU2$Class,LEFsE.OTU2$Order,LEFsE.OTU2$Family,LEFsE.OTU2$Genus,sep = "|")
+LEFsE.OTU2$Kingdom=NULL
+LEFsE.OTU2$Phylum=NULL
+LEFsE.OTU2$Class=NULL
+LEFsE.OTU2$Order=NULL
+LEFsE.OTU2$Family=NULL
+LEFsE.OTU2$Genus = NULL
+
+fishdata3=as.data.frame(t(sample_data(genus.glom)))
+fishdata3$Info=paste(row.names(fishdata3))
+fishdata4=fishdata3[c("FedStarved","TimeFedStarved","Description"),]
+
+rm(fishdata3)
+
+LEFsE.out2=merge(LEFsE.OTU2, fishdata4, all=TRUE)
+
+write.csv(LEFsE.out2, "~/LEFsE2.csv", quote=FALSE)
+```
+
+
+
