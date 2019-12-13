@@ -1,0 +1,63 @@
+---
+title: "Trimming Barcodes"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{bash}
+FASTQ_DIR="/sharedspace/fish_guts/DemultiplexedFiles"
+zcat $FASTQ_DIR/F_7S.S3d.fastq.gz | wc
+zcat $FASTQ_DIR/R_7S.S3d.fastq.gz | wc
+
+```
+
+```{bash}
+FASTQ_DIR="/sharedspace/fish_guts/TrimmedFASTQs"
+zcat $FASTQ_DIR/F_7S.S3d.fastq.trimmed.gz | wc
+zcat $FASTQ_DIR/R_7S.S3d.fastq.trimmed.gz | wc
+```
+
+
+```{bash}
+FASTQ_DIR="/sharedspace/fish_guts/DemultiplexedFiles"
+TRIMMED_DIR="/sharedspace/fish_guts/TrimmedFASTQs"
+mkdir -p $TRIMMED_DIR
+fastq-mcf -q1 -0 \
+  $HOME/barcodeTrims.fasta \
+  $FASTQ_DIR/F_7S.S3d.fastq.gz \
+  $FASTQ_DIR/R_7S.S3d.fastq.gz \
+  -o $TRIMMED_DIR/F_7S.S3d.fastq.trimmed.gz \
+  -o $TRIMMED_DIR/R_7S.S3d.fastq.trimmed.gz
+```
+
+```{bash}
+FASTQ_DIR="/sharedspace/fish_guts/DemultiplexedFiles"
+TRIMMED_DIR="/sharedspace/fish_guts/TrimmedFASTQs"
+mkdir -p $TRIMMED_DIR
+for FASTQ in  $FASTQ_DIR/*.fastq.gz
+  do
+    echo $FASTQ
+    fastq-mcf -q1 -0 \
+      $HOME/barcodeTrims.fasta \
+      $FASTQ
+      -o $TRIMMED_DIR/$(basename $FASTQ) \
+    zcat $FASTQ | \
+    gzip -c > $TRIMMED_DIR/$(basename $FASTQ)
+  done
+```
+
+```{r}
+
+```
+
+```{bash}
+ls /
+```
+
+```{r}
+X = ""
+```
+
