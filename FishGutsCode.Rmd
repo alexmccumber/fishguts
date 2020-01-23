@@ -362,7 +362,9 @@ ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE),
                sample_data(FishDF), 
                tax_table(taxa))
 
-saveRDS(ps, "~/ps.RDS")
+saveRDS(ps, "~/sharedspace/fishgutscode/ps.RDS")
+
+ps=readRDS("~/sharedspace/fishgutscode/ps.RDS")
 ```
 
 ##Completion of DADA2, now begin making phyloseq objects and remove DEVStarv experiment samples
@@ -409,14 +411,14 @@ vegan_otu <- function(physeq) {
 
 ```{r}
 ##merge otu table with sample data
-fishdr=as.data.frame(cbind(sample_names(fishonly),sample_data(fishonly)$ExptlTimePoint, sample_data(fishonly)$FedStarved, sample_data(fishonly)$TimeFedStarved, sample_data(fishonly)$TankName))
+fishdr=as.data.frame(cbind(sample_names(fishy.r),sample_data(fishy.r)$ExptlTimePoint, sample_data(fishy.r)$FedStarved, sample_data(fishy.r)$TimeFedStarved, sample_data(fishy.r)$TankName))
 fishdr2 <- fishdr[,-1]
 fishsamplenames = as.matrix(fishdr[1])
 rownames(fishdr) <- fishsamplenames
 colnames(fishdr) = c("SampleNames", "ExptlTimePoint", "FedStarved", "TimeFedStarved", "TankName")
 
 ##shows exptltimepoint is signficant for posthoc testing
-adonis(otu_table(psr.fishonly)~FedStarved*TimeFedStarved*ExptlTimePoint, permutations = 999, data=fishdr,strata = fishdr$TankName, parralell = 4)
+adonis(otu_table(fishy.r)~FedStarved*TimeFedStarved*ExptlTimePoint, permutations = 999, data=fishdr,strata = fishdr$TankName, parralell = 4)
 
 rich.fish=estimate_richness(otu_table(fishy.ps), split = TRUE, measures = c("Observed", "Shannon"))
 ```
@@ -436,6 +438,14 @@ newphyloPCoA$facet2=NULL
 PCoA.plot=ggplot(data = newphyloPCoA2, aes(x = PCoA2, y = PCoA3)) + geom_point(data=newphyloPCoA, alpha=0.05) + geom_point(data = newphyloPCoA2, aes(color = FedStarved), alpha=0.7) + facet_grid(facet2~facet) + theme_bw()+stat_ellipse(data=newphyloPCoA2, aes(group=FedStarved,color=FedStarved),type = "t")+scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f"))+labs(x="PCoA 2 [12.6%]", y="PCoA 3 [10.2%]")
 
 PCoA.plot
+
+adonis(BetaFish~FedStarved*ExptlTimePoint, permutations = 999, data=newphyloPCoA2,strata = fishdr$TankName, parralell = 4)
+
+library(devtools)
+install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+library(pairwiseAdonis)
+
+pairwise.adonis(BetaFish, fishdr2$V4)
 ```
 
 ```{r, alphadiversity plot, keep for pub}
