@@ -266,6 +266,11 @@ cp -R $OUT_DIR/sample_files/pool2R/* $OUT_DIR/DADA2/Reverse
 cp -R $OUT_DIR/sample_files/pool3R/* $OUT_DIR/DADA2/Reverse
 ```
 
+```{bash}
+cp $OUT_DIR/DemultiplexedFiles/F* $OUT_DIR/DADA2/Forward
+cp $OUT_DIR/DemultiplexedFiles/R* $OUT_DIR/DADA2/Reverse
+```
+
 ```{r}
 require(dada2)
 ```
@@ -307,7 +312,7 @@ plotQualityProfile(pathR[1:2])
 ```{r}
 # Filtering: THESE PARAMETERS ARENT OPTIMAL FOR ALL DATASETS
 require(dada2)
-out = filterAndTrim(fastqFs, filtFs, fastqRs, filtRs, maxEE=c(2,2), truncQ=5, maxN=0, rm.phix=TRUE, compress=TRUE, verbose=TRUE, matchIDs = TRUE)
+out = filterAndTrim(fastqFs, filtFs, fastqRs, filtRs, maxEE=c(2,2), trimLeft = c(16, 20), truncQ=5, maxN=0, rm.phix=TRUE, compress=TRUE, verbose=TRUE, matchIDs = TRUE, multithread = T)
 
 saveRDS(out, "~/out.RDS")
 
@@ -340,13 +345,28 @@ saveRDS(seqtab, "~/seqtab.RDS")
 seqtab=readRDS("~/seqtab.RDS")
 table(nchar(getSequences(seqtab)))
 
-seqtab2 <- seqtab[,nchar(colnames(seqtab)) %in% seq(282,288)]
+seqtab2 <- seqtab[,nchar(colnames(seqtab)) %in% seq(246,255)]
 rm(seqtab)
+
 ```
+
+```{bash}
+head $HOME/seqs.fasta
+```
+
 
 ```{r}
 # Remove chimeras
 seqtab.nochim <- removeBimeraDenovo(seqtab2, method="consensus", multithread=TRUE)
+
+uniques=getUniques(seqtab.nochim)
+
+sequences=names(uniques)
+
+uniquesToFasta(uniques,fout = "~/seqs.fasta", ids=sequences)
+
+rm(seqtab2)
+
 # Assign taxonomy
 taxa <- assignTaxonomy(seqtab.nochim, "/sharedspace/fish_guts/silva_nr_v132_train_set.fa.gz", multithread=TRUE)
 
@@ -355,6 +375,9 @@ taxa <- assignTaxonomy(seqtab.nochim, "/sharedspace/fish_guts/silva_nr_v132_trai
 saveRDS(taxa, "~/taxa.RDS")
 taxa=readRDS("~/taxa.RDS")
 
+library(readr)
+FishDF <- read_csv("/sharedspace/fish_guts/FishDF.csv")
+
 rownames(FishDF)=FishDF$Info
 
 require(phyloseq)
@@ -362,10 +385,15 @@ ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE),
                sample_data(FishDF), 
                tax_table(taxa))
 
-saveRDS(ps, "~/sharedspace/fishgutscode/ps.RDS")
+saveRDS(ps, "/sharedspace/fishgutscode/ps.RDS")
 
-ps=readRDS("~/sharedspace/fishgutscode/ps.RDS")
+ps=readRDS("/sharedspace/fishgutscode/ps.RDS")
 ```
+
+```{r}
+
+```
+
 
 ##Completion of DADA2, now begin making phyloseq objects and remove DEVStarv experiment samples
 
@@ -439,13 +467,121 @@ PCoA.plot=ggplot(data = newphyloPCoA2, aes(x = PCoA2, y = PCoA3)) + geom_point(d
 
 PCoA.plot
 
-adonis(BetaFish~FedStarved*ExptlTimePoint, permutations = 999, data=newphyloPCoA2,strata = fishdr$TankName, parralell = 4)
+adonis(BetaFish~FedStarved*ExptlTimePoint, permutations = 999, data=newphyloPCoA2, parralell = 4)
 
 library(devtools)
 install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
 library(pairwiseAdonis)
 
 pairwise.adonis(BetaFish, fishdr2$V4)
+
+install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+
+pairwise.adonis2(BetaFish~TimeFedStarved, data=newphyloPCoA2, nperm = 999)
+```
+
+```{r}
+anosim(BetaFish, fishdr$FedStarved, permutations = 999, parallel = 4)
+
+anosim(BetaFish, fishdr$ExptlTimePoint, permutations = 999, parallel = 4)
+
+anosim(BetaFish, fishdr$TimeFedStarved, permutations = 999, parallel = 4)
+
+```
+
+```{r}
+BetaD0 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "0S") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray")
+
+fishdrD0 = subset(fishdr, fishdr$ExptlTimePoint == "0S")
+betadisfishD0=betadisper(BetaD0, group=fishdrD0$FedStarved, type="centroid")
+scoreD0=data.frame(scores(betadisfishD0,display="sites",choice=1:3),fishdrD0)
+
+anosim(BetaD0, fishdrD0$FedStarved, permutations = 999, parallel = 4)
+```
+
+```{r}
+BetaD0 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1S") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray")
+
+fishdrD0 = subset(fishdr, fishdr$ExptlTimePoint == "1S")
+betadisfishD0=betadisper(BetaD0, group=fishdrD0$FedStarved, type="centroid")
+scoreD0=data.frame(scores(betadisfishD0,display="sites",choice=1:3),fishdrD0)
+
+anosim(BetaD0, fishdrD0$FedStarved, permutations = 999, parallel = 4)
+```
+
+```{r}
+BetaD0 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "7S") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray")
+
+fishdrD0 = subset(fishdr, fishdr$ExptlTimePoint == "7S")
+betadisfishD0=betadisper(BetaD0, group=fishdrD0$FedStarved, type="centroid")
+scoreD0=data.frame(scores(betadisfishD0,display="sites",choice=1:3),fishdrD0)
+
+anosim(BetaD0, fishdrD0$FedStarved, permutations = 999, parallel = 4)
+```
+
+```{r}
+BetaD0 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "21S") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray")
+
+fishdrD0 = subset(fishdr, fishdr$ExptlTimePoint == "21S")
+betadisfishD0=betadisper(BetaD0, group=fishdrD0$FedStarved, type="centroid")
+scoreD0=data.frame(scores(betadisfishD0,display="sites",choice=1:3),fishdrD0)
+
+anosim(BetaD0, fishdrD0$FedStarved, permutations = 999, parallel = 4)
+```
+```{r}
+BetaD0 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1R") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray")
+
+fishdrD0 = subset(fishdr, fishdr$ExptlTimePoint == "7S")
+betadisfishD0=betadisper(BetaD0, group=fishdrD0$FedStarved, type="centroid")
+scoreD0=data.frame(scores(betadisfishD0,display="sites",choice=1:3),fishdrD0)
+
+anosim(BetaD0, fishdrD0$FedStarved, permutations = 999, parallel = 4)
+```
+
+```{r}
+BetaD0 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "3R") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray")
+
+fishdrD0 = subset(fishdr, fishdr$ExptlTimePoint == "3R")
+betadisfishD0=betadisper(BetaD0, group=fishdrD0$FedStarved, type="centroid")
+scoreD0=data.frame(scores(betadisfishD0,display="sites",choice=1:3),fishdrD0)
+
+anosim(BetaD0, fishdrD0$FedStarved, permutations = 999, parallel = 4)
+```
+
+```{r}
+BetaD0 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "7R") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray")
+
+fishdrD0 = subset(fishdr, fishdr$ExptlTimePoint == "7R")
+betadisfishD0=betadisper(BetaD0, group=fishdrD0$FedStarved, type="centroid")
+scoreD0=data.frame(scores(betadisfishD0,display="sites",choice=1:3),fishdrD0)
+
+anosim(BetaD0, fishdrD0$FedStarved, permutations = 999, parallel = 4)
+```
+
+```{r}
+BetaD0 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "21R") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray")
+
+fishdrD0 = subset(fishdr, fishdr$ExptlTimePoint == "21R")
+betadisfishD0=betadisper(BetaD0, group=fishdrD0$FedStarved, type="centroid")
+scoreD0=data.frame(scores(betadisfishD0,display="sites",choice=1:3),fishdrD0)
+
+anosim(BetaD0, fishdrD0$FedStarved, permutations = 999, parallel = 4)
 ```
 
 ```{r, alphadiversity plot, keep for pub}
