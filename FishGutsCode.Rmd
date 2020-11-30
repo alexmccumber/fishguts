@@ -354,6 +354,19 @@ rm(seqtab)
 head $HOME/seqs.fasta
 ```
 
+##Creation of tree, need to run through python 2
+
+```{bash, make a tree with SEPP using gg backbone tree}
+wget  "https://raw.github.com/smirarab/sepp-refs/master/gg/sepp-package.tar.bz"
+
+tar xvfj sepp-package.tar.bz
+
+cd sepp-package/sepp
+
+python setup.py config -c
+
+python setup.py install --user
+```
 
 ```{r}
 # Remove chimeras
@@ -365,8 +378,21 @@ sequences=names(uniques)
 
 uniquesToFasta(uniques,fout = "~/seqs.fasta", ids=sequences)
 
-rm(seqtab2)
+```
 
+```{bash}
+./sepp-package/run-sepp.sh seqs.fasta Fish
+```
+
+```{r}
+library(ggtree)
+library(ape)
+
+seq.tree = read.tree(file = "/sharedspace/fishgutscode/Fish_placement.tog.relabelled.tre") %>%
+  ape::keep.tip(., sequences)
+```
+
+```{r}
 # Assign taxonomy
 taxa <- assignTaxonomy(seqtab.nochim, "/sharedspace/fish_guts/silva_nr_v132_train_set.fa.gz", multithread=TRUE)
 
@@ -383,17 +409,13 @@ rownames(FishDF)=FishDF$Info
 require(phyloseq)
 ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
                sample_data(FishDF), 
-               tax_table(taxa))
+               tax_table(taxa),
+               phy_tree(seq.tree))
 
 saveRDS(ps, "/sharedspace/fishgutscode/ps.RDS")
 
 ps=readRDS("/sharedspace/fishgutscode/ps.RDS")
 ```
-
-```{r}
-
-```
-
 
 ##Completion of DADA2, now begin making phyloseq objects and remove DEVStarv experiment samples
 
@@ -411,13 +433,13 @@ Sam=as.list(sample_names(subset_samples(fishonly.f, sample_sums(fishonly.f) <=20
 
 Sam
 
-fishonly.fp = subset_samples(fishonly.f, sample_names(fishonly.f) != "1S.S1a" & sample_names(fishonly.f) != "1S.S1b" & sample_names(fishonly.f) != "1S.S1c" & sample_names(fishonly.f) != "21R.F3a" & sample_names(fishonly.f) != "3R.S2c" & sample_names(fishonly.f) != "3S.F2f" & sample_names(fishonly.f) != "7R.F1d" & sample_names(fishonly.f) != "7R.F1e" & sample_names(fishonly.f) != "7R.F2c" & sample_names(fishonly.f) != "7R.S3b" & sample_names(fishonly.f) != "7R.S4e")
+fishonly.fp = prune_samples(sample_sums(fishonly.f)>=2000, fishonly.f)
 
 ```
 
 ```{r, create merged phyloseq file}
 fishy.r = transform_sample_counts(fishonly.fp, function(x) x / sum(x) )
-rm(fishonly.fp, fishonly.f)
+rm(fishonly.f)
 
 #ordination test
 ord.test=ordinate(fishy.r, "NMDS", "bray")
@@ -448,10 +470,267 @@ colnames(fishdr) = c("SampleNames", "ExptlTimePoint", "FedStarved", "TimeFedStar
 ##shows exptltimepoint is signficant for posthoc testing
 adonis(otu_table(fishy.r)~FedStarved*TimeFedStarved*ExptlTimePoint, permutations = 999, data=fishdr,strata = fishdr$TankName, parralell = 4)
 
-rich.fish=estimate_richness(otu_table(fishy.ps), split = TRUE, measures = c("Observed", "Shannon"))
+rich.fish=estimate_richness(otu_table(fishonly.fp), split = TRUE, measures = c("Observed", "Shannon"))
+```
+
+#0S
+```{r}
+require(tibble)
+B2 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "0S") %>%
+  filter_taxa(., function(x) mean(x) != 0, prune=TRUE)
+lefse = as.data.frame(cbind(t(otu_table(B2, taxa_are_rows = FALSE)), tax_table(B2)))
+
+lefse$Info=paste(lefse$Kingdom, lefse$Phylum, lefse$Class, lefse$Order, lefse$Family, lefse$Genus, sep = "|")
+lefse$Kingdom = NULL
+lefse$Phylum=NULL
+lefse$Class=NULL
+lefse$Order=NULL
+lefse$Family=NULL
+lefse$Genus=NULL
+
+LEFseMeta = sample_data(B2) %>%
+  data.frame(.) %>%
+  mutate(., names = rownames(.)) %>%
+  select(., c(FedStarved,names)) %>%
+  as.data.frame(.) %>%
+  column_to_rownames(., var = "names") %>%
+  t(.)
+
+lefse.out=merge(LEFseMeta,lefse, all=TRUE) %>%
+  select(Info, everything())
+
+write.csv(lefse.out, "/sharedspace/fishgutscode/Fishylefse0S.csv", quote = FALSE)
+```
+#1S
+```{r}
+require(tibble)
+B2 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1S") %>%
+  filter_taxa(., function(x) mean(x) != 0, prune=TRUE)
+lefse = as.data.frame(cbind(t(otu_table(B2, taxa_are_rows = FALSE)), tax_table(B2)))
+
+lefse$Info=paste(lefse$Kingdom, lefse$Phylum, lefse$Class, lefse$Order, lefse$Family, lefse$Genus, sep = "|")
+lefse$Kingdom = NULL
+lefse$Phylum=NULL
+lefse$Class=NULL
+lefse$Order=NULL
+lefse$Family=NULL
+lefse$Genus=NULL
+
+LEFseMeta = sample_data(B2) %>%
+  data.frame(.) %>%
+  mutate(., names = rownames(.)) %>%
+  select(., c(FedStarved,names)) %>%
+  as.data.frame(.) %>%
+  column_to_rownames(., var = "names") %>%
+  t(.)
+
+lefse.out=merge(LEFseMeta,lefse, all=TRUE) %>%
+  select(Info, everything())
+
+write.csv(lefse.out, "/sharedspace/fishgutscode/Fishylefse1S.csv", quote = FALSE)
+```
+#3S
+```{r}
+require(tibble)
+B2 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "3S") %>%
+  filter_taxa(., function(x) mean(x) != 0, prune=TRUE)
+lefse = as.data.frame(cbind(t(otu_table(B2, taxa_are_rows = FALSE)), tax_table(B2)))
+
+lefse$Info=paste(lefse$Kingdom, lefse$Phylum, lefse$Class, lefse$Order, lefse$Family, lefse$Genus, sep = "|")
+lefse$Kingdom = NULL
+lefse$Phylum=NULL
+lefse$Class=NULL
+lefse$Order=NULL
+lefse$Family=NULL
+lefse$Genus=NULL
+
+LEFseMeta = sample_data(B2) %>%
+  data.frame(.) %>%
+  mutate(., names = rownames(.)) %>%
+  select(., c(FedStarved,names)) %>%
+  as.data.frame(.) %>%
+  column_to_rownames(., var = "names") %>%
+  t(.)
+
+lefse.out=merge(LEFseMeta,lefse, all=TRUE) %>%
+  select(Info, everything())
+
+write.csv(lefse.out, "/sharedspace/fishgutscode/Fishylefse3S.csv", quote = FALSE)
+```
+#7S
+```{r}
+require(tibble)
+B2 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "7S") %>%
+  filter_taxa(., function(x) mean(x) != 0, prune=TRUE)
+lefse = as.data.frame(cbind(t(otu_table(B2, taxa_are_rows = FALSE)), tax_table(B2)))
+
+lefse$Info=paste(lefse$Kingdom, lefse$Phylum, lefse$Class, lefse$Order, lefse$Family, lefse$Genus, sep = "|")
+lefse$Kingdom = NULL
+lefse$Phylum=NULL
+lefse$Class=NULL
+lefse$Order=NULL
+lefse$Family=NULL
+lefse$Genus=NULL
+
+LEFseMeta = sample_data(B2) %>%
+  data.frame(.) %>%
+  mutate(., names = rownames(.)) %>%
+  select(., c(FedStarved,names)) %>%
+  as.data.frame(.) %>%
+  column_to_rownames(., var = "names") %>%
+  t(.)
+
+lefse.out=merge(LEFseMeta,lefse, all=TRUE) %>%
+  select(Info, everything())
+
+write.csv(lefse.out, "/sharedspace/fishgutscode/Fishylefse7S.csv", quote = FALSE)
+```
+#21S
+```{r}
+require(tibble)
+B2 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "21S") %>%
+  filter_taxa(., function(x) mean(x) != 0, prune=TRUE)
+lefse = as.data.frame(cbind(t(otu_table(B2, taxa_are_rows = FALSE)), tax_table(B2)))
+
+lefse$Info=paste(lefse$Kingdom, lefse$Phylum, lefse$Class, lefse$Order, lefse$Family, lefse$Genus, sep = "|")
+lefse$Kingdom = NULL
+lefse$Phylum=NULL
+lefse$Class=NULL
+lefse$Order=NULL
+lefse$Family=NULL
+lefse$Genus=NULL
+
+LEFseMeta = sample_data(B2) %>%
+  data.frame(.) %>%
+  mutate(., names = rownames(.)) %>%
+  select(., c(FedStarved,names, TankName)) %>%
+  as.data.frame(.) %>%
+  column_to_rownames(., var = "names") %>%
+  t(.)
+
+lefse.out=merge(LEFseMeta,lefse, all=TRUE) %>%
+  select(Info, everything())
+
+write.csv(lefse.out, "/sharedspace/fishgutscode/Fishylefse21S.csv", quote = FALSE)
+```
+#1R
+```{r}
+require(tibble)
+B2 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1R") %>%
+  filter_taxa(., function(x) mean(x) != 0, prune=TRUE)
+lefse = as.data.frame(cbind(t(otu_table(B2, taxa_are_rows = FALSE)), tax_table(B2)))
+
+lefse$Info=paste(lefse$Kingdom, lefse$Phylum, lefse$Class, lefse$Order, lefse$Family, lefse$Genus, sep = "|")
+lefse$Kingdom = NULL
+lefse$Phylum=NULL
+lefse$Class=NULL
+lefse$Order=NULL
+lefse$Family=NULL
+lefse$Genus=NULL
+
+LEFseMeta = sample_data(B2) %>%
+  data.frame(.) %>%
+  mutate(., names = rownames(.)) %>%
+  select(., c(FedStarved,names)) %>%
+  as.data.frame(.) %>%
+  column_to_rownames(., var = "names") %>%
+  t(.)
+
+lefse.out=merge(LEFseMeta,lefse, all=TRUE) %>%
+  select(Info, everything())
+
+write.csv(lefse.out, "/sharedspace/fishgutscode/Fishylefse1R.csv", quote = FALSE)
+```
+#3R
+```{r}
+require(tibble)
+B2 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "3R") %>%
+  filter_taxa(., function(x) mean(x) != 0, prune=TRUE)
+lefse = as.data.frame(cbind(t(otu_table(B2, taxa_are_rows = FALSE)), tax_table(B2)))
+
+lefse$Info=paste(lefse$Kingdom, lefse$Phylum, lefse$Class, lefse$Order, lefse$Family, lefse$Genus, sep = "|")
+lefse$Kingdom = NULL
+lefse$Phylum=NULL
+lefse$Class=NULL
+lefse$Order=NULL
+lefse$Family=NULL
+lefse$Genus=NULL
+
+LEFseMeta = sample_data(B2) %>%
+  data.frame(.) %>%
+  mutate(., names = rownames(.)) %>%
+  select(., c(FedStarved,names)) %>%
+  as.data.frame(.) %>%
+  column_to_rownames(., var = "names") %>%
+  t(.)
+
+lefse.out=merge(LEFseMeta,lefse, all=TRUE) %>%
+  select(Info, everything())
+
+write.csv(lefse.out, "/sharedspace/fishgutscode/Fishylefse3R.csv", quote = FALSE)
+```
+#7R
+```{r}
+require(tibble)
+B2 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "7R") %>%
+  filter_taxa(., function(x) mean(x) != 0, prune=TRUE)
+lefse = as.data.frame(cbind(t(otu_table(B2, taxa_are_rows = FALSE)), tax_table(B2)))
+
+lefse$Info=paste(lefse$Kingdom, lefse$Phylum, lefse$Class, lefse$Order, lefse$Family, lefse$Genus, sep = "|")
+lefse$Kingdom = NULL
+lefse$Phylum=NULL
+lefse$Class=NULL
+lefse$Order=NULL
+lefse$Family=NULL
+lefse$Genus=NULL
+
+LEFseMeta = sample_data(B2) %>%
+  data.frame(.) %>%
+  mutate(., names = rownames(.)) %>%
+  select(., c(FedStarved,names)) %>%
+  as.data.frame(.) %>%
+  column_to_rownames(., var = "names") %>%
+  t(.)
+
+lefse.out=merge(LEFseMeta,lefse, all=TRUE) %>%
+  select(Info, everything())
+
+write.csv(lefse.out, "/sharedspace/fishgutscode/Fishylefse7R.csv", quote = FALSE)
+```
+#21R
+```{r}
+require(tibble)
+B2 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "21R") %>%
+  filter_taxa(., function(x) mean(x) != 0, prune=TRUE)
+lefse = as.data.frame(cbind(t(otu_table(B2, taxa_are_rows = FALSE)), tax_table(B2)))
+
+lefse$Info=paste(lefse$Kingdom, lefse$Phylum, lefse$Class, lefse$Order, lefse$Family, lefse$Genus, sep = "|")
+lefse$Kingdom = NULL
+lefse$Phylum=NULL
+lefse$Class=NULL
+lefse$Order=NULL
+lefse$Family=NULL
+lefse$Genus=NULL
+
+LEFseMeta = sample_data(B2) %>%
+  data.frame(.) %>%
+  mutate(., names = rownames(.)) %>%
+  select(., c(FedStarved,names)) %>%
+  as.data.frame(.) %>%
+  column_to_rownames(., var = "names") %>%
+  t(.)
+
+lefse.out=merge(LEFseMeta,lefse, all=TRUE) %>%
+  select(Info, everything())
+
+write.csv(lefse.out, "/sharedspace/fishgutscode/Fishylefse21R.csv", quote = FALSE)
 ```
 
 ```{r}
+sample_data(fishy.r)$facet = newphyloPCoA2$facet
+sample_data(fishy.r)$facet2 = newphyloPCoA2$facet2
+
+
 fishdr = as.data.frame(sample_data(fishy.r))
 BetaFish=vegdist(vegan_otu(fishy.r), "bray")
 fishdr$facet=factor(fishdr$facet, levels = c("0", "1", "3", "7", "21"))
@@ -486,7 +765,6 @@ anosim(BetaFish, fishdr$FedStarved, permutations = 999, parallel = 4)
 anosim(BetaFish, fishdr$ExptlTimePoint, permutations = 999, parallel = 4)
 
 anosim(BetaFish, fishdr$TimeFedStarved, permutations = 999, parallel = 4)
-
 ```
 
 ```{r}
@@ -499,6 +777,38 @@ betadisfishD0=betadisper(BetaD0, group=fishdrD0$FedStarved, type="centroid")
 scoreD0=data.frame(scores(betadisfishD0,display="sites",choice=1:3),fishdrD0)
 
 anosim(BetaD0, fishdrD0$FedStarved, permutations = 999, parallel = 4)
+```
+
+```{r}
+UniFish = ordinate(fishy.r, method = "PCoA", distance = "unifrac")
+UniFish$vectors[,1:4]
+fishdr = as.data.frame(sample_data(fishy.r))
+
+fishdr$facet=factor(fishdr$facet, levels = c("0", "1", "3", "7", "21"))
+fishdr$facet2=factor(fishdr$facet2, levels = c("Starved","Refed"))
+
+newphyloUni=data.frame(UniFish$vectors[,1:4],fishdr)
+newphyloUni2=newphyloUni
+newphyloUni$ExptlTimePoint=NULL
+newphyloUni$facet=NULL
+newphyloUni$facet2=NULL
+
+PCoA.plot=ggplot(data = newphyloUni2, aes(x = Axis.2, y = Axis.3)) + geom_point(data=newphyloUni, alpha=0.05) + geom_point(data = newphyloUni2, aes(color = FedStarved), alpha=0.7) + facet_grid(facet2~facet) + theme_bw()+stat_ellipse(data=newphyloUni2, aes(group=FedStarved,color=FedStarved),type = "t")+scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f"))+labs(x="PCoA 2 [12.6%]", y="PCoA 3 [10.2%]")
+
+PCoA.plot
+```
+
+adonis(BetaFish~FedStarved*ExptlTimePoint, permutations = 999, data=newphyloPCoA2, parralell = 4)
+
+library(devtools)
+install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+library(pairwiseAdonis)
+
+pairwise.adonis(BetaFish, fishdr2$V4)
+
+install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+
+pairwise.adonis2(BetaFish~TimeFedStarved, data=newphyloPCoA2, nperm = 999)
 ```
 
 ```{r}
@@ -596,19 +906,25 @@ p
 
 alphaplot$logV = log10(alphaplot$fishalpha)
 
-Day0fed=subset(alphaplot, alphaplot$TimeFedStarved == "0Sstarved")
+Day0fed=subset(alphaplot, alphaplot$TimeFedStarved == "0Sfed")
 
 shapiro.test(Day0fed$logV)
 
 mean(Day0fed$logV)
 
+Day0starved=subset(alphaplot, alphaplot$TimeFedStarved == "0Sstarved")
+
+shapiro.test(Day0starved$logV)
+
+mean(Day0starved$logV)
+
 #normalize log transformed value to be equal at Day 0
 
-(0.7332785+0.6869831)/2
+(0.3645994+0.4299988)/2
 
-x=0.7101308/0.7332785
+x=0.3972991/0.4299988
 
-y=0.7101308/0.6869831
+y=0.3972991/0.3645994
 
 library(dplyr)
 
@@ -619,21 +935,68 @@ AlphaPlot2=full_join(FedAlpha, StarvedAlpha)
 
 p=ggplot(AlphaPlot2, aes(x=ExptlTimePoint, y=logVt)) + geom_point(aes(color=FedStarved), alpha = 0.3) + scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f")) +stat_summary(aes(y=logVt, group = FedStarved), fun.data = mean_se, geom = "errorbar", width = 0.1)+stat_summary(aes(y=logVt, group = FedStarved, color = FedStarved), fun.y = mean, geom = "line")+theme_bw()+xlab("Experimental Time Point")+ylab("Normalized log Alpha Diversity")
 
-p #anova indicates that there is a signficant difference by condition (fedStarved), time and condition x time (p = 0.026)
-
-Day0fed= AlphaPlot2 %>% filter(AlphaPlot2$TimeFedStarved == "0Sstarved") 
-
-mean(Day0fed$logVt)
-
-min(AlphaPlot2$logVt)
+p #anova indicates that there is a signficant difference by condition (fedStarved) and time but not condition x time (p = 0.075)
 
 fit=aov(logVt ~ FedStarved*ExptlTimePoint , data=AlphaPlot2)
 plot(fit)
 summary(fit)
-#anova indicates that there is a signficant difference by condition (fedStarved), time and condition x time (p = 0.026)
+#anova indicates that there is a signficant difference by condition (fedStarved) and time but not condition x time (p = 0.075)
 TukeyHSD(fit)
 #signficant difference at 7R p=0.0091635 and 21R p=0.0056947 between fed and starved alpha diversity
 ```
+
+#caculate faith's PD, may need to install picante
+```{r}
+#install.packages("picante", repos="http://R-Forge.R-project.org")
+library(picante)
+
+sample = vegan_otu(fishy.r)
+
+tree = phy_tree(fishy.r)
+
+pd.result = pd(sample, tree)
+
+pd.result$names = rownames(pd.result)
+
+summary(pd.result$PD)
+
+histogram(pd.result$PD)
+
+alphaplot=cbind(sample_data(fishy.r), pd.result)
+
+alphaplot$ExptlTimePoint = factor(alphaplot$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+
+p=ggplot(alphaplot, aes(x=FedStarved, y=fishalpha))+geom_boxplot(aes(color=FedStarved))+facet_grid(~ExptlTimePoint)+scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f"))+theme_bw()
+p
+
+alphaplot$logV = log10(alphaplot$PD)
+
+shapiro.test(alphaplot$logV) #p>0.05
+
+Day0fed=subset(alphaplot, alphaplot$TimeFedStarved == "0Sfed")
+
+Day0starved=subset(alphaplot, alphaplot$TimeFedStarved == "0Sstarved")
+
+mean(Day0fed$logV) #1.298002
+mean(Day0starved$logV) #1.157416
+
+#normalize log transformed value to be equal at Day 0
+
+(1.298002+1.157416)/2
+
+x=1.227709/1.298002
+
+y=1.227709/1.157416
+
+FedAlpha=filter(alphaplot, FedStarved == "fed") %>% mutate(logV, logVt=logV*x)
+StarvedAlpha = filter(alphaplot, FedStarved == "starved") %>% mutate(logV, logVt=logV*y)
+
+AlphaPlot2=full_join(FedAlpha, StarvedAlpha)
+
+p=ggplot(AlphaPlot2, aes(x=ExptlTimePoint, y=logVt)) + geom_point(aes(color=FedStarved), alpha = 0.3) + scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f")) +stat_summary(aes(y=logVt, group = FedStarved), fun.data = mean_se, geom = "errorbar", width = 0.1)+stat_summary(aes(y=logVt, group = FedStarved, color = FedStarved), fun.y = mean, geom = "line")+theme_bw()+xlab("Experimental Time Point")+ylab("Normalized log Alpha Diversity (Faith's PD)")
+p
+```
+
 
 ```{r, export data for lefse, keep for pub}
 write.csv(cbind(t(seqtab.nochim), taxa), "~/LEFsE.csv", quote=FALSE)
@@ -686,5 +1049,322 @@ LEFsE.out2=merge(LEFsE.OTU2, fishdata4, all=TRUE)
 write.csv(LEFsE.out2, "~/LEFsE2.csv", quote=FALSE)
 ```
 
+```{r}
+ps.Genus=subset_taxa(fishy.r, Genus=="Vibrio") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums = rowSums(vegan.Genus)
+Genusdf=cbind(Genussums,newphyloPCoA2,deparse.level = 1)
+Vibriodf=Genusdf
+Vibriodf$Vibrio=Vibriodf$Genussums
+Vibriodf$Genussums=NULL
 
+Vibriodf$ExptlTimePoint = factor(Vibriodf$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+Plesiomonasdf$ExptlTimePoint = factor(Plesiomonasdf$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+
+p=ggplot(Vibriodf, aes(x=FedStarved, y=Vibrio))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Vibrio Gut Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.85))
+p
+```
+
+```{r}
+ps.Genus=subset_taxa(fishy.r, Genus=="Plesiomonas") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums = rowSums(vegan.Genus)
+Genusdf=cbind(Genussums,newphyloPCoA2,deparse.level = 1)
+Plesiomonasdf=Genusdf
+Plesiomonasdf$Plesiomonas=Plesiomonasdf$Genussums
+Plesiomonasdf$Genussums=NULL
+
+Plesiomonasdf$ExptlTimePoint = factor(Plesiomonasdf$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+
+p=ggplot(Plesiomonasdf, aes(x=FedStarved, y=Plesiomonas))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Plesiomonas Gut Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.85))
+p
+```
+
+```{r}
+#Create env sample phyloseq object
+ps.env = subset_samples(ps, sample_data(ps)$Group == "Environment")
+ps.env.f = filter_taxa(ps.env, function(x) mean(x) != 0, prune=TRUE)
+ps.env.fr  = transform_sample_counts(ps.env.f, function(x) x / sum(x) )
+rm(ps.env, ps.env.f)
+envDF=as.data.frame(sample_data(ps.env.fr))
+```
+
+```{r}
+ps.Genus=subset_taxa(ps.env.fr, Genus=="Vibrio") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums = rowSums(vegan.Genus)
+Genusdf=cbind(Genussums,envDF,deparse.level = 1)
+Vibriodf=Genusdf
+Vibriodf$Vibrio=Vibriodf$Genussums
+Vibriodf$Genussums=NULL
+
+Vibriodf$ExptlTimePoint = factor(Vibriodf$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+
+p=ggplot(Vibriodf, aes(x=FedStarved, y=Vibrio))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Vibrio Env Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.85))
+p
+```
+
+#Data for Plesiomonas
+```{r}
+ps.Genus=subset_taxa(ps.env.fr, Genus=="Plesiomonas") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums = rowSums(vegan.Genus)
+Genusdf=cbind(Genussums,envDF,deparse.level = 1)
+Plesiomonasdf=Genusdf
+Plesiomonasdf$Plesiomonas=Plesiomonasdf$Genussums
+Plesiomonasdf$Genussums=NULL
+
+Plesiomonasdf$ExptlTimePoint = factor(Plesiomonasdf$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+
+p=ggplot(Plesiomonasdf, aes(x=FedStarved, y=Plesiomonas))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Plesiomonas Env Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.85))
+p
+```
+
+```{r}
+ps.Genus=subset_taxa(fishy.r, Genus=="Cetobacterium") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums = rowSums(vegan.Genus)
+Genusdf=cbind(Genussums,newphyloPCoA2,deparse.level = 1)
+Cetobacteriumdf=Genusdf
+Cetobacteriumdf$Cetobacterium=Cetobacteriumdf$Genussums
+Cetobacteriumdf$Genussums=NULL
+
+Cetobacteriumdf$ExptlTimePoint = factor(Cetobacteriumdf$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+
+p=ggplot(Cetobacteriumdf, aes(x=FedStarved, y=Cetobacterium))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Cetobacterium Gut Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.85))
+p
+```
+
+```{r}
+ps.Genus=subset_taxa(fishy.r, Genus=="ZOR0006") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums = rowSums(vegan.Genus)
+Genusdf=cbind(Genussums,newphyloPCoA2,deparse.level = 1)
+ZOR0006df=Genusdf
+ZOR0006df$Cetobacterium=ZOR0006df$Genussums
+ZOR0006df$Genussums=NULL
+
+ZOR0006df$ExptlTimePoint = factor(ZOR0006df$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+
+p=ggplot(ZOR0006df, aes(x=FedStarved, y=Cetobacterium))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("ZOR0006 Gut Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.85))
+p
+```
+
+#Make a heatmap based off lefse results
+```{r}
+ps.Genus= subset_taxa(fishy.r, Genus=="Crenobacter") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+CrenobacterTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(CrenobacterTFS) = c("TimeFedStarved","Crenobacter")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Plesiomonas") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+PlesiomonasTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(PlesiomonasTFS) = c("TimeFedStarved","Plesiomonas")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Glutamicibacter") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+GlutamicibacterTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(GlutamicibacterTFS) = c("TimeFedStarved","Glutamicibacter")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Exiguobacterium") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+ExiguobacteriumTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(ExiguobacteriumTFS) = c("TimeFedStarved","Exiguobacterium")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Paraclostridium") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+ParaclostridiumTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(ParaclostridiumTFS) = c("TimeFedStarved","Paraclostridium")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Halomonas") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+HalomonasTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(HalomonasTFS) = c("TimeFedStarved","Halomonas")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Macellibacteroides") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+MacellibacteroidesTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(MacellibacteroidesTFS) = c("TimeFedStarved","Macellibacteroides")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Aeromonas") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+AeromonasTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(AeromonasTFS) = c("TimeFedStarved","Aeromonas")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Cetobacterium") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+CetobacteriumTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(CetobacteriumTFS) = c("TimeFedStarved","Cetobacterium")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="ZOR0006") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+ZOR0006TFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(ZOR0006TFS) = c("TimeFedStarved","CK-1C4-19")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Mycobacterium") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+MycobacteriumTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(MycobacteriumTFS) = c("TimeFedStarved","Mycobacterium")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Vibrio") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+VibrioTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(VibrioTFS) = c("TimeFedStarved","Vibrio")
+
+ps.Genus= subset_taxa(fishy.r, Genus=="Shewanella") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums=rowSums(vegan.Genus) 
+ShewanellaTFS= cbind(vegan.Genus,alphaplot,deparse.level=1) %>% 
+  aggregate(Genussums~TimeFedStarved,.,median) 
+colnames(ShewanellaTFS) = c("TimeFedStarved","Shewanella")
+
+MedianGenusDF=as.data.frame(cbind(AeromonasTFS$Aeromonas,CetobacteriumTFS$Cetobacterium,ZOR0006TFS$`CK-1C4-19`, CrenobacterTFS$Crenobacter, ExiguobacteriumTFS$Exiguobacterium, GlutamicibacterTFS$Glutamicibacter, HalomonasTFS$Halomonas, MacellibacteroidesTFS$Macellibacteroides, ParaclostridiumTFS$Paraclostridium, PlesiomonasTFS$Plesiomonas, ShewanellaTFS$Shewanella, VibrioTFS$Vibrio))
+
+rownames(MedianGenusDF)=AeromonasTFS$TimeFedStarved
+
+colnames(MedianGenusDF)=c("Aeromonas", "Cetobacterium", "CK-1C4-19", "Crenobacter", "Exiguobacterium", "Glutamicibacter", "Halomonas", "Macellibacteroides", "Paraclostridium", "Plesiomonas", "Shewanella", "Vibrio")
+
+dfa=MedianGenusDF[c(1,5,13,17,9,3,11,15,7),]
+dfb=MedianGenusDF[c(2,6,14,18,10,4,12,16,8),]
+DFc <- log2(dfa/dfb)
+rownames(DFc)=c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R")
+
+#Remove 0S
+DFc = DFc[-1,]
+
+#Change Inf and -Inf values to max and min 
+DFc[c(2:4),4]=7.169312
+DFc[4,8]=7.169312
+DFc[4,10]=7.169312
+
+DFc[5,8]=min(DFc$Vibrio)
+
+genus_matrix=as.matrix(t(DFc))
+
+library(RColorBrewer)
+coul = brewer.pal(9, "BrBG")
+coul2=colorRampPalette(coul)(50)
+
+heatmap(genus_matrix, Rowv=NULL, Colv=NULL, col = coul2, scale = "column", margins = c(3,1))
+genus_matrixR=genus_matrix*(-1)
+heatmap(genus_matrixR, Rowv=NULL, Colv=NA, col = coul2, scale = "column", margins = c(3,1))
+
+install.packages("heatmaply")
+library(heatmaply)
+install.packages("plotly")
+library(plotly)
+webshot::install_phantomjs()
+plotly::orca()
+saveRDS(genus_matrixR, "~/genus_matrixR.RDS")
+heatmap=heatmaply(genus_matrixR, colors = BrBG, grid_color = "black", Colv=NULL, file="~/LEfSeheatmap.pdf")
+heatmap
+```
+
+
+```{r}
+rownames(NewGenusDF)=AeromonasTFS$TimeFedStarved
+
+NewGenusDF$FedStarved=c("fed","fed","fed","fed","fed","fed","fed","fed","fed","starved","starved","starved","starved","starved","starved","starved","starved","starved")
+NewGenusDF$ExptlTimePoint= c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R","0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R")
+NewGenusDF$Days=c(0,1,3,7,21,22,24,28,42,0,1,3,7,21,22,24,28,42)
+NewGenusDF$TimeFedStarved=rownames(NewGenusDF)
+NewGenusDF$ExptlTimePoint = factor(NewGenusDF$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+```
+
+```{r}
+dfa=EnvGenusDF[c(1,5,13,17,9,3,11,15,7),]
+dfb=EnvGenusDF[c(2,6,14,18,10,4,12,16,8),]
+DFc <- log2(dfa/dfb)
+rownames(DFc)=c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R")
+DFc[is.na(DFc)]=0
+rownames(DFc)=DFc$X1
+DFc$X1=NULL
+
+write.csv(DFc, "~/DFc.csv")
+
+EnvGenusDF[c(1,5,13,17,9,3,11,15,7,2,6,14,18,10,4,12,16,8),]
+
+saveRDS(EnvGenusDF, "/sharedspace/fish_guts/envgenusDF.RDS")
+
+envgenus_matrix=data.matrix(t(envheatmap))
+list=colnames(envheatmap)
+envlist=paste(list, "env", sep="_")
+colnames(envheatmap)=envlist
+write.csv(DFc, file="~/envheatmap.csv")
+
+##filter large genus DF
+tGenusDF=as.data.frame(t(GenusDF))
+tGenusDF$maxval=apply(GenusDF,2,FUN=mean)
+tGenusDF$Names=rownames(tGenusDF)
+GenusDF.f=filter(tGenusDF,maxval>0.01)
+
+
+##Make heatmap for Gut Genus samples
+
+genusdf1=MedianGenusDF[1:9,]
+genusdf2=MedianGenusDF[10:18,]
+genusDF3 <- log2(genusdf1/genusdf2)
+rownames(DFc)=c("1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R")
+
+
+##Change Na's to 0's
+genusDF3[is.na(genusDF3)]=0
+##Change -Inf to lowest value in dataframe
+genusDF3[c(7:9),2]=min(genusDF3$Vibrio)
+
+genusDF3=DFc
+
+write.csv(genusDF3, "~/genusDF3.csv")
+rm(genus_matrix)
+DFc <- read_csv("~/DFc.csv")
+genus_matrix=as.matrix(t(DFc))
+DFc$X1=NULL
+
+library(RColorBrewer)
+coul = brewer.pal(9, "BrBG")
+coul2=colorRampPalette(coul)(50)
+
+heatmap(genus_matrix, Rowv=NULL, Colv=NULL, col = coul2, scale = "column", margins = c(3,1))
+genus_matrixR=genus_matrix*(-1)
+heatmap(genus_matrixR, Rowv=NULL, Colv=NA, col = coul2, scale = "column", margins = c(3,1))
+
+rownames(genus_matrixR)
+
+rownames(genus_matrixR)=c("Aeromonas", "Exiguobacterium", "Plesiomonas", "Cetobacterium", "Pseudomonas", "Vibrio", "CK-1C4-19", "Mycobacterium", "Macellibacteroides", "Glutamicibacter", "Paraclostridium", "Crenobacter")
+
+install.packages("heatmaply")
+library(heatmaply)
+install.packages("plotly")
+library(plotly)
+webshot::install_phantomjs()
+plotly::orca()
+saveRDS(genus_matrixR, "~/genus_matrixR.RDS")
+heatmap=heatmaply(genus_matrixR, colors = BrBG, grid_color = "black", Colv=NULL, file="~/LEfSeheatmap.pdf")
+heatmap
+```
 
