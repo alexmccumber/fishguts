@@ -1698,3 +1698,137 @@ summary(fit)
 TukeyHSD(fit) #sig at 1S, 3S, 21S, 1R
 ```
 
+```{r}
+#install.packages("usedist")
+library(usedist)
+
+D0 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "0S") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray") 
+
+D0Fed = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "0S" & sample_data(fishy.r)$FedStarved == "fed") %>%
+  sample_data(.) %>%
+  as.data.frame(.)
+
+D0Starved = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "0S" & sample_data(fishy.r)$FedStarved == "starved") %>%
+  sample_data(.) %>%
+  as.data.frame(.) 
+  
+dist_between_centroids(D0, D0Fed$Info, D0Starved$Info) #0.152
+
+Day = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1S") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray") 
+
+DayF = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1S" & sample_data(fishy.r)$FedStarved == "fed") %>%
+  sample_data(.) %>%
+  as.data.frame(.)
+
+DayS = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1S" & sample_data(fishy.r)$FedStarved == "starved") %>%
+  sample_data(.) %>%
+  as.data.frame(.) 
+  
+dist_between_centroids(Day, DayF$Info, DayS$Info) #0.319
+
+Day = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "3S") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray") 
+
+DayF = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "3S" & sample_data(fishy.r)$FedStarved == "fed") %>%
+  sample_data(.) %>%
+  as.data.frame(.)
+
+DayS = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "3S" & sample_data(fishy.r)$FedStarved == "starved") %>%
+  sample_data(.) %>%
+  as.data.frame(.) 
+  
+dist_between_centroids(Day, DayF$Info, DayS$Info) #0.392
+
+Day = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "7S") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray") 
+
+DayF = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "7S" & sample_data(fishy.r)$FedStarved == "fed") %>%
+  sample_data(.) %>%
+  as.data.frame(.)
+
+DayS = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "7S" & sample_data(fishy.r)$FedStarved == "starved") %>%
+  sample_data(.) %>%
+  as.data.frame(.) 
+  
+dist_between_centroids(Day, DayF$Info, DayS$Info) #0.312
+
+Day = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "21S") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray") 
+
+DayF = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "21S" & sample_data(fishy.r)$FedStarved == "fed") %>%
+  sample_data(.) %>%
+  as.data.frame(.)
+
+DayS = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "21S" & sample_data(fishy.r)$FedStarved == "starved") %>%
+  sample_data(.) %>%
+  as.data.frame(.) 
+  
+dist_between_centroids(Day, DayF$Info, DayS$Info) #0.368
+```
+
+```{r}
+Day = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1R") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray") 
+
+DayF = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1R" & sample_data(fishy.r)$FedStarved == "fed") %>%
+  sample_data(.) %>%
+  as.data.frame(.)
+
+DayS = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1R" & sample_data(fishy.r)$FedStarved == "starved") %>%
+  sample_data(.) %>%
+  as.data.frame(.) 
+  
+dist_between_centroids(Day, DayF$Info, DayS$Info) 
+
+Day = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "3R") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray") 
+
+DayF = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "3R" & sample_data(fishy.r)$FedStarved == "fed") %>%
+  sample_data(.) %>%
+  as.data.frame(.)
+
+DayS = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "3R" & sample_data(fishy.r)$FedStarved == "starved") %>%
+  sample_data(.) %>%
+  as.data.frame(.) 
+  
+dist_between_centroids(Day, DayF$Info, DayS$Info) 
+
+Day = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "7R") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray") 
+
+DayF = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "7R" & sample_data(fishy.r)$FedStarved == "fed") %>%
+  sample_data(.) %>%
+  as.data.frame(.)
+
+DayS = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "7R" & sample_data(fishy.r)$FedStarved == "starved") %>%
+  sample_data(.) %>%
+  as.data.frame(.) 
+  
+dist_between_centroids(Day, DayF$Info, DayS$Info) 
+
+Day = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "21R") %>%
+  vegan_otu(.) %>%
+  vegdist(., "bray") 
+
+DayF = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "21R" & sample_data(fishy.r)$FedStarved == "fed") %>%
+  sample_data(.) %>%
+  as.data.frame(.)
+
+DayS = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "21R" & sample_data(fishy.r)$FedStarved == "starved") %>%
+  sample_data(.) %>%
+  as.data.frame(.) 
+  
+dist_between_centroids(Day, DayF$Info, DayS$Info)
+#0.309, 0.281, 0.240, 0.313
+```
+
