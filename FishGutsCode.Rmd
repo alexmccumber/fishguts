@@ -422,7 +422,8 @@ ps=readRDS("/sharedspace/fishgutscode/ps.RDS")
 ##Need to review this chunk of code
 ```{r}
 fishy.ps = subset_samples(ps, sample_data(ps)$Group == "Fish")
-fishonly.f = filter_taxa(fishy.ps, function(x) mean(x) != 0, prune=TRUE)
+fishonly.f = filter_taxa(fishy.ps, function(x) mean(x) != 0, prune=TRUE) %>%
+  subset_taxa(., Kingdom=="Bacteria") 
 rm(fishy.ps)
 ```
 
@@ -442,8 +443,8 @@ fishy.r = transform_sample_counts(fishonly.fp, function(x) x / sum(x) )
 rm(fishonly.f)
 
 #ordination test
-ord.test=ordinate(fishy.r, "NMDS", "bray")
-p1=plot_ordination(fishy.r, ord.test, type="samples", color="TimeFedStarved")
+ordinate(fishy.r, "PCoA", "bray") %>%
+  plot_ordination(fishy.r, ., type="samples", color="TimeFedStarved", axes = 2:3)
 print(p1)
 ```
 
@@ -742,22 +743,33 @@ newphyloPCoA$ExptlTimePoint=NULL
 newphyloPCoA$facet=NULL
 newphyloPCoA$facet2=NULL
 
-PCoA.plot=ggplot(data = newphyloPCoA2, aes(x = PCoA2, y = PCoA3)) + geom_point(data=newphyloPCoA, alpha=0.05) + geom_point(data = newphyloPCoA2, aes(color = FedStarved), alpha=0.7) + facet_grid(facet2~facet) + theme_bw()+stat_ellipse(data=newphyloPCoA2, aes(group=FedStarved,color=FedStarved),type = "t")+scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f"))+labs(x="PCoA 2 [12.6%]", y="PCoA 3 [10.2%]")
+
+
+PCoA.plot=ggplot(data = newphyloPCoA2, aes(x = PCoA2, y = PCoA3)) + geom_point(data=newphyloPCoA, alpha=0.05) + geom_point(data = newphyloPCoA2, aes(color = FedStarved), alpha=0.7) + facet_grid(facet2~facet) + theme_bw()+stat_ellipse(data=newphyloPCoA2, aes(group=FedStarved,color=FedStarved),type = "t")+scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f"))+labs(x="PCoA 2 [13%]", y="PCoA 3 [10.4%]")
 
 PCoA.plot
 
 adonis(BetaFish~FedStarved*ExptlTimePoint, permutations = 999, data=newphyloPCoA2, parralell = 4)
 
 library(devtools)
-install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
+#install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
 library(pairwiseAdonis)
 
-pairwise.adonis(BetaFish, fishdr2$V4)
-
-install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
-
 pairwise.adonis2(BetaFish~TimeFedStarved, data=newphyloPCoA2, nperm = 999)
+
+permutest(betadisfish)
+
+plot(betadisfish)
+boxplot(betadisfish)
+mod.HSD <- TukeyHSD(betadisfish)
+mod.HSD
+plot(mod.HSD)
 ```
+
+```{r}
+
+```
+
 
 ```{r}
 anosim(BetaFish, fishdr$FedStarved, permutations = 999, parallel = 4)
@@ -780,9 +792,12 @@ anosim(BetaD0, fishdrD0$FedStarved, permutations = 999, parallel = 4)
 ```
 
 ```{r}
-UniFish = ordinate(fishy.r, method = "PCoA", distance = "unifrac")
+fishy.PD = filter_taxa(fishonly.fp, function(x) sum(x > 10) > (0.05*length(x)), TRUE) %>%
+  transform_sample_counts(., function(x) x / sum(x) )
+
+UniFish = ordinate(fishy.PD, method = "PCoA", distance = "unifrac")
 UniFish$vectors[,1:4]
-fishdr = as.data.frame(sample_data(fishy.r))
+fishdr = as.data.frame(sample_data(fishy.PD))
 
 fishdr$facet=factor(fishdr$facet, levels = c("0", "1", "3", "7", "21"))
 fishdr$facet2=factor(fishdr$facet2, levels = c("Starved","Refed"))
@@ -796,6 +811,24 @@ newphyloUni$facet2=NULL
 PCoA.plot=ggplot(data = newphyloUni2, aes(x = Axis.2, y = Axis.3)) + geom_point(data=newphyloUni, alpha=0.05) + geom_point(data = newphyloUni2, aes(color = FedStarved), alpha=0.7) + facet_grid(facet2~facet) + theme_bw()+stat_ellipse(data=newphyloUni2, aes(group=FedStarved,color=FedStarved),type = "t")+scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f"))+labs(x="PCoA 2 [12.6%]", y="PCoA 3 [10.2%]")
 
 PCoA.plot
+
+unifrac.dist <- UniFrac(fishy.PD, 
+                        weighted = T, 
+                        normalized = TRUE,  
+                        parallel = FALSE, 
+                        fast = TRUE)
+
+ps.disper <- betadisper(unifrac.dist, group=fishdr$TimeFedStarved, type="centroid")
+
+plot(ps.disper)
+boxplot(ps.disper)
+mod.HSD <- TukeyHSD(ps.disper)
+mod.HSD
+plot(mod.HSD)
+
+permanova <- adonis(unifrac.dist ~ scientific_name, data = metadf)
+
+permanova
 ```
 
 adonis(BetaFish~FedStarved*ExptlTimePoint, permutations = 999, data=newphyloPCoA2, parralell = 4)
@@ -809,7 +842,7 @@ pairwise.adonis(BetaFish, fishdr2$V4)
 install_github("pmartinezarbizu/pairwiseAdonis/pairwiseAdonis")
 
 pairwise.adonis2(BetaFish~TimeFedStarved, data=newphyloPCoA2, nperm = 999)
-```
+
 
 ```{r}
 BetaD0 = subset_samples(fishy.r, sample_data(fishy.r)$ExptlTimePoint == "1S") %>%
@@ -917,14 +950,15 @@ Day0starved=subset(alphaplot, alphaplot$TimeFedStarved == "0Sstarved")
 shapiro.test(Day0starved$logV)
 
 mean(Day0starved$logV)
+mean(Day0fed$logV)
 
 #normalize log transformed value to be equal at Day 0
 
-(0.3645994+0.4299988)/2
+(0.3642402+0.4299504)/2
 
-x=0.3972991/0.4299988
+x=0.3970953/0.4299504
 
-y=0.3972991/0.3645994
+y=0.3970953/0.3642402
 
 library(dplyr)
 
@@ -977,24 +1011,100 @@ Day0fed=subset(alphaplot, alphaplot$TimeFedStarved == "0Sfed")
 
 Day0starved=subset(alphaplot, alphaplot$TimeFedStarved == "0Sstarved")
 
-mean(Day0fed$logV) #1.298002
-mean(Day0starved$logV) #1.157416
+mean(Day0fed$logV) #1.291432
+mean(Day0starved$logV) #1.154062
 
 #normalize log transformed value to be equal at Day 0
 
-(1.298002+1.157416)/2
+(1.291432+1.154062)/2
 
-x=1.227709/1.298002
+x=1.222747/1.291432
 
-y=1.227709/1.157416
+y=1.222747/1.154062
 
 FedAlpha=filter(alphaplot, FedStarved == "fed") %>% mutate(logV, logVt=logV*x)
 StarvedAlpha = filter(alphaplot, FedStarved == "starved") %>% mutate(logV, logVt=logV*y)
 
+mean(FedAlpha$PD)
+mean(StarvedAlpha$PD)
+
 AlphaPlot2=full_join(FedAlpha, StarvedAlpha)
 
-p=ggplot(AlphaPlot2, aes(x=ExptlTimePoint, y=logVt)) + geom_point(aes(color=FedStarved), alpha = 0.3) + scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f")) +stat_summary(aes(y=logVt, group = FedStarved), fun.data = mean_se, geom = "errorbar", width = 0.1)+stat_summary(aes(y=logVt, group = FedStarved, color = FedStarved), fun.y = mean, geom = "line")+theme_bw()+xlab("Experimental Time Point")+ylab("Normalized log Alpha Diversity (Faith's PD)")
+AlphaPlot2 = AlphaPlot2 %>%
+  mutate(days = case_when(
+    ExptlTimePoint == "0S" ~ "0",
+    ExptlTimePoint == "1S" ~ "1",
+    ExptlTimePoint == "3S" ~ "3",
+    ExptlTimePoint =="7S" ~ "7",
+    ExptlTimePoint =="21S" ~ "21",
+    ExptlTimePoint =="1R" ~ "22",
+    ExptlTimePoint =="3R" ~ "24",
+    ExptlTimePoint =="7R" ~ "28",
+    ExptlTimePoint =="21R" ~ "42"))
+
+AlphaPlot2$days = as.integer(AlphaPlot2$days)
+
+p=ggplot(AlphaPlot2, aes(x=days, y=logVt)) +
+  geom_point(aes(color=FedStarved), alpha = 0.3) +
+  scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f")) +
+  stat_summary(aes(y=logVt, group = FedStarved), fun.data = mean_se, geom = "errorbar", width = 0.1) +
+  stat_summary(aes(y=logVt, group = FedStarved, color = FedStarved), fun.y = mean, geom = "line")+
+  theme_bw()+
+  xlab("Experimental Time Point")+
+  ylab("Normalized log Alpha Diversity (Faith's PD)")+
+  scale_x_continuous("Distance",breaks = c(0,1,3,7,21,22,24,28,42), labels = c("0","1","3","7","21","1","3","7","21"), limits = c(-1,43), expand = c(0,0))
 p
+
+fit=aov(logVt ~ FedStarved*ExptlTimePoint , data=AlphaPlot2)
+plot(fit)
+summary(fit)
+#anova indicates that there is a signficant difference by condition (fedStarved) and time, and condition x time 
+TukeyHSD(fit)
+#signficant difference at 1S, 3S, 7S, 21S, and 21R
+```
+
+```{r}
+p=ggplot(AlphaPlot2, aes(x=days, y=HAA)) +
+  geom_point(aes(color=FedStarved), alpha = 0.3) +
+  scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f")) +
+  stat_summary(aes(y=HAA, group = FedStarved), fun.data = mean_se, geom = "errorbar", width = 0.1) +
+  stat_summary(aes(y=HAA, group = FedStarved, color = FedStarved), fun.y = mean, geom = "line")+
+  theme_bw()+
+  xlab("Experimental Time Point")+
+  ylab("Height at Anterior of Anal Fin (mm)")+
+  scale_x_continuous("Distance",breaks = c(0,1,3,7,21,22,24,28,42), labels = c("0","1","3","7","21","1","3","7","21"), limits = c(-1,43), expand = c(0,0))
+p
+
+p=ggplot(AlphaPlot2, aes(x=days, y=SL)) +
+  geom_point(aes(color=FedStarved), alpha = 0.3) +
+  scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f")) +
+  stat_summary(aes(y=SL, group = FedStarved), fun.data = mean_se, geom = "errorbar", width = 0.1) +
+  stat_summary(aes(y=SL, group = FedStarved, color = FedStarved), fun.y = mean, geom = "line")+
+  theme_bw()+
+  xlab("Experimental Time Point")+
+  ylab("Standard Length (mm)")+
+  scale_x_continuous("Distance",breaks = c(0,1,3,7,21,22,24,28,42), labels = c("0","1","3","7","21","1","3","7","21"), limits = c(-1,43), expand = c(0,0))
+p
+
+fit=aov(HAA ~ FedStarved*ExptlTimePoint , data=AlphaPlot2)
+plot(fit)
+summary(fit)
+#anova indicates that there is a signficant difference by condition (fedStarved) and time, and condition x time 
+TukeyHSD(fit) #7S, 21S, 1R, 3R, 7R, 21R
+
+fit=aov(SL ~ FedStarved*ExptlTimePoint , data=AlphaPlot2)
+plot(fit)
+summary(fit)
+#anova indicates that there is a signficant difference by condition (fedStarved) and time, and condition x time 
+TukeyHSD(fit) #7S, 21S, 1R, 3R, 7R, 21R
+
+
+```
+
+
+
+```{r}
+distance(fishy.r, "bray")
 ```
 
 
@@ -1050,6 +1160,7 @@ write.csv(LEFsE.out2, "~/LEFsE2.csv", quote=FALSE)
 ```
 
 ```{r}
+library(phyloseq)
 ps.Genus=subset_taxa(fishy.r, Genus=="Vibrio") 
 vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
 Genussums = rowSums(vegan.Genus)
@@ -1059,10 +1170,38 @@ Vibriodf$Vibrio=Vibriodf$Genussums
 Vibriodf$Genussums=NULL
 
 Vibriodf$ExptlTimePoint = factor(Vibriodf$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
-Plesiomonasdf$ExptlTimePoint = factor(Plesiomonasdf$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
 
 p=ggplot(Vibriodf, aes(x=FedStarved, y=Vibrio))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Vibrio Gut Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.85))
 p
+
+ps.Genus=subset_taxa(fishy.r, Genus=="Vibrio") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums = rowSums(vegan.Genus)
+Genusdf=cbind(Genussums,newphyloPCoA2,deparse.level = 1)
+Vibriodf=Genusdf
+Vibriodf$Vibrio=Vibriodf$Genussums
+Vibriodf$Genussums=NULL
+
+#shouldn't use, non-parametric data
+fit=aov(Vibrio ~ FedStarved*ExptlTimePoint , data=Vibriodf)
+plot(fit)
+summary(fit)
+#anova indicates time by fedstarved is significant
+TukeyHSD(fit)
+#indicates significant time point is 21S
+
+library(stats)
+TimeFedStarved = factor(Vibriodf$TimeFedStarved)
+pairwise.wilcox.test(Vibriodf$Vibrio, TimeFedStarved, p.adj = "BH") #1S, 3S, 21S, 1R, 21R
+
+Vibriodf %>%
+  filter(., TimeFedStarved == "21Sstarved") %>%
+  summary()
+
+
+Vibriodf %>%
+  filter(., TimeFedStarved == "21Sfed") %>%
+  summary()
 ```
 
 ```{r}
@@ -1076,13 +1215,33 @@ Plesiomonasdf$Genussums=NULL
 
 Plesiomonasdf$ExptlTimePoint = factor(Plesiomonasdf$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
 
-p=ggplot(Plesiomonasdf, aes(x=FedStarved, y=Plesiomonas))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Plesiomonas Gut Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.85))
+p=ggplot(Plesiomonasdf, aes(x=FedStarved, y=Plesiomonas))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Plesiomonas Gut Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.5))
 p
+
+ps.Genus=subset_taxa(fishy.r, Genus=="Plesiomonas") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums = rowSums(vegan.Genus)
+Genusdf=cbind(Genussums,newphyloPCoA2,deparse.level = 1)
+Vibriodf=Genusdf
+Vibriodf$Vibrio=Vibriodf$Genussums
+Vibriodf$Genussums=NULL
+
+fit=aov(Vibrio ~ FedStarved*ExptlTimePoint , data=Vibriodf)
+plot(fit)
+summary(fit)
+#anova indicates time by fedstarved is significant
+TukeyHSD(fit)
+#indicates significant time point is 1S, 3S, 1R, 3R
+
+library(stats)
+TimeFedStarved = factor(Vibriodf$TimeFedStarved)
+pairwise.wilcox.test(Vibriodf$Vibrio, TimeFedStarved, p.adj = "BH")
 ```
 
 ```{r}
 #Create env sample phyloseq object
-ps.env = subset_samples(ps, sample_data(ps)$Group == "Environment")
+ps.env = subset_samples(ps, sample_data(ps)$Group == "Environment") %>%
+  subset_taxa(., Kingdom=="Bacteria")
 ps.env.f = filter_taxa(ps.env, function(x) mean(x) != 0, prune=TRUE)
 ps.env.fr  = transform_sample_counts(ps.env.f, function(x) x / sum(x) )
 rm(ps.env, ps.env.f)
@@ -1102,7 +1261,27 @@ Vibriodf$ExptlTimePoint = factor(Vibriodf$ExptlTimePoint, levels = c("0S", "1S",
 
 p=ggplot(Vibriodf, aes(x=FedStarved, y=Vibrio))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Vibrio Env Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.85))
 p
+
+ps.Genus=subset_taxa(ps.env.fr, Genus=="Vibrio") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums = rowSums(vegan.Genus)
+Genusdf=cbind(Genussums,envDF,deparse.level = 1)
+Vibriodf=Genusdf
+Vibriodf$Vibrio=Vibriodf$Genussums
+Vibriodf$Genussums=NULL
+
+fit=aov(Vibrio ~ FedStarved*ExptlTimePoint , data=Vibriodf)
+plot(fit)
+summary(fit)
+#anova indicates time by fedstarved is significant
+TukeyHSD(fit)
+#indicates significant time point is 7S, 21S, & 1R 
+
+library(stats)
+TimeFedStarved = factor(Vibriodf$TimeFedStarved)
+pairwise.wilcox.test(Vibriodf$Vibrio, TimeFedStarved, p.adj = "BH")
 ```
+
 
 #Data for Plesiomonas
 ```{r}
@@ -1116,8 +1295,27 @@ Plesiomonasdf$Genussums=NULL
 
 Plesiomonasdf$ExptlTimePoint = factor(Plesiomonasdf$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
 
-p=ggplot(Plesiomonasdf, aes(x=FedStarved, y=Plesiomonas))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Plesiomonas Env Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.85))
+p=ggplot(Plesiomonasdf, aes(x=FedStarved, y=Plesiomonas))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+facet_grid(~ExptlTimePoint)+ylab("Plesiomonas Env Relative Abundance")+scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+ scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ theme_bw()+coord_cartesian(ylim = c(0, 0.5))
 p
+
+ps.Genus=subset_taxa(ps.env.fr, Genus=="Plesiomonas") 
+vegan.Genus=as.data.frame(vegan_otu(ps.Genus))
+Genussums = rowSums(vegan.Genus)
+Genusdf=cbind(Genussums,envDF,deparse.level = 1)
+Vibriodf=Genusdf
+Vibriodf$Vibrio=Vibriodf$Genussums
+Vibriodf$Genussums=NULL
+
+fit=aov(Vibrio ~ FedStarved*ExptlTimePoint , data=Vibriodf)
+plot(fit)
+summary(fit)
+#anova indicates time by fedstarved is significant
+TukeyHSD(fit)
+#indicates significant time point is 3S & 3R 
+
+library(stats)
+TimeFedStarved = factor(Vibriodf$TimeFedStarved)
+pairwise.wilcox.test(Vibriodf$Vibrio, TimeFedStarved, p.adj = "BH")
 ```
 
 ```{r}
@@ -1366,5 +1564,137 @@ plotly::orca()
 saveRDS(genus_matrixR, "~/genus_matrixR.RDS")
 heatmap=heatmaply(genus_matrixR, colors = BrBG, grid_color = "black", Colv=NULL, file="~/LEfSeheatmap.pdf")
 heatmap
+```
+
+
+
+
+#PhilR ordination
+```{r}
+BiocManager::install("philr")
+library(philr)
+```
+
+```{r}
+Philr = fishonly.fp %>%
+  #tax_glom(., taxrank = "genus") %>%
+  filter_taxa(., function(x) sum(x > 3) > (0.2*length(x)), TRUE) %>%
+  transform_sample_counts(., function(x) x+1) 
+
+phy_tree(Philr) = multi2di(phy_tree(Philr))
+
+is.rooted(phy_tree(Philr))
+
+is.binary.tree(phy_tree(Philr))
+
+phy_tree(Philr) <- makeNodeLabel(phy_tree(Philr), method="number", prefix='n')
+
+name.balance(phy_tree(Philr), tax_table(Philr), 'n1')
+
+otu.table <- vegan_otu(otu_table(Philr))
+
+tree <- phy_tree(Philr)
+metadata <- sample_data(Philr)
+tax <- tax_table(Philr)
+
+gp.philr <- philr(otu.table, tree, 
+                  part.weights='enorm.x.gm.counts', 
+                  ilr.weights='blw.sqrt')
+
+gp.dist <- dist(gp.philr, method="euclidean")
+
+gp.pcoa <- ordinate(Philr, 'PCoA', distance=gp.dist)
+
+plot_ordination(Philr, gp.pcoa, type="samples", color = "TimeFedStarved", shape = "FedStarved")
+```
+
+```{r}
+newphyloPhilR=data.frame(gp.pcoa$vectors[,1:4],fishdr)
+newphyloPhilR2=newphyloPhilR
+newphyloPhilR$ExptlTimePoint=NULL
+newphyloPhilR$facet=NULL
+newphyloPhilR$facet2=NULL
+
+PCoA.plot=ggplot(data = newphyloPhilR2, aes(x = Axis.1, y = Axis.2)) + geom_point(data=newphyloPhilR, alpha=0.05) + geom_point(data = newphyloPhilR2, aes(color = FedStarved), alpha=0.7) + facet_grid(facet2~facet) + theme_bw()+stat_ellipse(data=newphyloPhilR2, aes(group=FedStarved,color=FedStarved),type = "t")+scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f"))+labs(x="PCoA 1 [32.7%]", y="PCoA 2 [20%]")
+
+PCoA.plot
+```
+
+```{r}
+library(glmnet)
+glmmod = glmnet(gp.philr, sample_data(Philr)$FedStarved, alpha =1 , family = "binomial")
+
+top.coords <- as.matrix(coefficients(glmmod, s=0.1))
+top.coords <- rownames(top.coords)[which(top.coords != 0)]
+(top.coords <- top.coords[2:length(top.coords)])
+
+tc.names <- sapply(top.coords, function(x) name.balance(tree, tax, x))
+
+tc.names
+```
+
+
+
+
+
+```{r}
+BrayPS = prune_samples(sample_sums(ps)>=2000, ps) %>%
+  transform_sample_counts(., function(x) x / sum(x) ) %>%
+  subset_taxa(., Kingdom=="Bacteria") 
+
+Bray = distance(BrayPS, "bray", "samples")
+
+BrayM=as.matrix(Bray) %>%
+  melt(.) %>%
+  rename(., fish_samples = "Var1", tank_samples = "Var2")
+
+head(BrayM)
+
+FedBray = merge(BrayM, fish_tank_data_fed, by = c("fish_samples", "tank_samples"))
+
+StarvedBray = merge(BrayM, fish_tank_data_starved, by = c("fish_samples", "tank_samples"))
+
+BrayDF = rbind(FedBray, StarvedBray)
+
+rm(BrayM, Bray, FedBray, StarvedBray)
+
+BrayDF$ExptlTimePoint = factor(BrayDF$ExptlTimePoint, levels = c("0S", "1S", "3S", "7S", "21S", "1R", "3R", "7R", "21R"))
+
+ggplot(BrayDF, aes(x=TimeFedStarved, y=value))+geom_boxplot(aes(color=FedStarved, fill = FedStarved), lwd = .3)+
+  #facet_grid(~ExptlTimePoint)+ylab("Bray-Curtis")+
+  scale_color_manual(breaks=c("fed","starved"), values=c("#000000", "#000000"))+
+  scale_fill_manual(values=c("#bf812d", "#35978f"), name = "Group", breaks=c("Fed", "Starved"), labels=c("Fed", "Starved"))+ 
+  theme_bw()+coord_cartesian(ylim = c(0, 1))
+p
+
+BrayDF = BrayDF %>%
+  mutate(days = case_when(
+    ExptlTimePoint == "0S" ~ "0",
+    ExptlTimePoint == "1S" ~ "1",
+    ExptlTimePoint == "3S" ~ "3",
+    ExptlTimePoint =="7S" ~ "7",
+    ExptlTimePoint =="21S" ~ "21",
+    ExptlTimePoint =="1R" ~ "22",
+    ExptlTimePoint =="3R" ~ "24",
+    ExptlTimePoint =="7R" ~ "28",
+    ExptlTimePoint =="21R" ~ "42"))
+
+BrayDF$days = as.integer(BrayDF$days)
+
+p=ggplot(BrayDF, aes(x=days, y=value)) +
+  geom_point(aes(color=FedStarved), alpha = 0.3) +
+  scale_color_manual(breaks=c("fed","starved"),values=c("#bf812d", "#35978f")) +
+  stat_summary(aes(y=value, group = FedStarved), fun.data = mean_se, geom = "errorbar", width = 0.1) +
+  stat_summary(aes(y=value, group = FedStarved, color = FedStarved), fun.y = mean, geom = "line")+
+  theme_bw()+
+  xlab("Experimental Time Point")+
+  ylab("Bray-Curtis Distance, Gut and Environment")+
+  scale_x_continuous("Distance",breaks = c(0,1,3,7,21,22,24,28,42), labels = c("0","1","3","7","21","1","3","7","21"), limits = c(-1,43), expand = c(0,0))
+
+fit=aov(value ~ FedStarved*ExptlTimePoint , data=BrayDF)
+plot(fit)
+summary(fit)
+#anova indicates that there is a signficant difference by condition x time (p < 0.05)
+TukeyHSD(fit) #sig at 1S, 3S, 21S, 1R
 ```
 
