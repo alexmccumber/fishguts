@@ -1,6 +1,4 @@
-# fishguts
-
-## Guide to Files
+# Fishguts Guide to Files
 
 ### FishGutsCode.Rmd
 This is the R markdown file that contains all the code to create figures and go from fastq files to phyloseq object
@@ -9,4 +7,7 @@ This is the R markdown file that contains all the code to create figures and go 
 This file contains the code to use cutadapt for removal of primer phasing. Use the FbarcodeTrims.fasta for the mapping file for the forward reads and the RbarcodeTrims.fasta for the reverse read
 
 ### Phyloseq objects and other misc. files
-The phyloseq object used for the analysis is saved as ps.RDS and contains the tree information that is within the seqtree.RDS and Fish_placement.tog.relabelled.tre.gz files. the fish-tank_data.csv files can be used to calculate bray-curtis distance. 
+The phyloseq object used for the analysis is saved as ps.RDS and contains the tree information that is within the seqtree.RDS and Fish_placement.tog.relabelled.tre.gz files. the fish-tank_data.csv files can be used to calculate bray-curtis distance. AlphaPlot2.RDS file can help with creating the PCoA plot for faceting.
+
+### Mapping files
+Start with 2015... useful for demultiplexing raw data and making the original dataframe.
